@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from database.connection import init_db, get_db_connection
 from agents.email_intel.agent import EmailIntelligenceAgent
+from agents.email_intel.schemas import RawEmail, EmailCategory
 from agents.daily_assistant.agent import DailyAssistantAgent
 from agents.placement.agent import PlacementAgent
 from agents.placement.schemas import HiringStage
@@ -67,9 +68,84 @@ project_agent = ProjectAgent()
 has_email_creds = bool((os.getenv("EMAIL_USER") or getattr(settings, "EMAIL_USER", "")) and (os.getenv("EMAIL_PASSWORD") or getattr(settings, "EMAIL_PASSWORD", "")))
 orchestrator = AutonomousOrchestrator(use_live_email=has_email_creds)
 
+def purge_seen_newsletters() -> int:
+    """Deletes non-career newsletters (Medium, Google Cloud promo, etc.) and deduplicates pipeline."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            DELETE FROM emails_raw 
+            WHERE sender LIKE '%medium.com%' 
+               OR sender LIKE '%quora%' 
+               OR sender LIKE '%substack%' 
+               OR sender LIKE '%twitter%'
+               OR sender LIKE '%x.com%'
+               OR is_noise = 1
+            """
+        )
+        deleted = cursor.rowcount
+        
+        cursor.execute(
+            """
+            DELETE FROM placement_pipeline 
+            WHERE id NOT IN (
+                SELECT MIN(id) FROM placement_pipeline GROUP BY LOWER(company_name)
+            )
+            """
+        )
+        return deleted
+
+def reprocess_stored_emails() -> dict:
+    """Re-evaluates previously stored emails with the enhanced extractor to capture missed placement signals."""
+    results = {"reprocessed": 0, "promoted_placements": 0, "promoted_deadlines": 0}
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, message_id, sender, subject, date_received FROM emails_raw ORDER BY id ASC")
+        rows = cursor.fetchall()
+
+        for r in rows:
+            raw = RawEmail(
+                message_id=r["message_id"],
+                sender=r["sender"],
+                subject=r["subject"],
+                date=r["date_received"],
+                body=r["subject"]
+            )
+            parsed = email_agent.extractor.extract(raw)
+            
+            if not parsed.is_noise and parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION, EmailCategory.COLLEGE_NOTICE):
+                co_name = parsed.company_or_sender or "Campus Placement"
+                cursor.execute("SELECT 1 FROM placement_pipeline WHERE LOWER(company_name) = LOWER(?)", (co_name,))
+                if not cursor.fetchone():
+                    status = "INTERVIEW_SCHEDULED" if parsed.category == EmailCategory.INTERVIEW_INVITE else "OA_PENDING" if parsed.category == EmailCategory.PLACEMENT_OA else "APPLIED"
+                    cursor.execute(
+                        """
+                        INSERT INTO placement_pipeline (email_id, company_name, role, status, test_link, test_deadline, prep_notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            r["id"],
+                            co_name,
+                            "Software Engineer",
+                            status,
+                            parsed.important_urls[0] if parsed.important_urls else None,
+                            parsed.deadline_date,
+                            f"Extracted from {r['subject']}"
+                        )
+                    )
+                    results["promoted_placements"] += 1
+
+            cursor.execute(
+                "UPDATE emails_raw SET category = ?, urgency = ?, is_noise = ? WHERE id = ?",
+                (parsed.category.value, parsed.urgency.value, 1 if parsed.is_noise else 0, r["id"])
+            )
+            results["reprocessed"] += 1
+
+    return results
+
 # Automatic startup migration: purge seen non-career newsletters & deduplicate pipeline
 try:
-    email_agent.purge_seen_newsletters()
+    purge_seen_newsletters()
 except Exception:
     pass
 
@@ -974,12 +1050,12 @@ with tab_briefing:
         with c_feed_h2:
             if st.button("⚡ Re-Triage", key="btn_retriage_feed", use_container_width=True):
                 with st.spinner("Re-triaging emails against enhanced career database..."):
-                    ret = email_agent.reprocess_stored_emails()
+                    ret = reprocess_stored_emails()
                     st.toast(f"Re-triaged! Promoted {ret['promoted_placements']} opportunities to Placement Pipeline!")
                     st.rerun()
         with c_feed_h3:
             if st.button("🧹 Purge Newsletters", key="btn_purge_feed", use_container_width=True):
-                del_cnt = email_agent.purge_seen_newsletters()
+                del_cnt = purge_seen_newsletters()
                 st.toast(f"Purged {del_cnt} noisy newsletters!")
                 st.rerun()
 
