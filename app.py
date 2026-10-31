@@ -276,24 +276,10 @@ def seed_sample_data():
                 """
             )
 
-        # 4. Sample Learning Logs (so Problems Solved shows practice progress)
-        cursor.execute("SELECT COUNT(*) as c FROM learning_logs")
-        if cursor.fetchone()["c"] == 0:
-            cursor.execute(
-                """
-                INSERT INTO learning_logs (topic_name, problems_solved, confidence_rating, notes)
-                VALUES 
-                ('Arrays & Hashing', 2, 4, 'Solved Two Sum & Contains Duplicate'),
-                ('Two Pointers & Sliding Window', 1, 3, 'Solved Valid Palindrome')
-                """
-            )
-
-# Auto-seed baseline career data on first startup if pipeline is empty
+# Ensure only real user practice sessions appear in learning_logs
 with get_db_connection() as conn:
-    c_check = conn.cursor()
-    c_check.execute("SELECT COUNT(*) as c FROM placement_pipeline")
-    if c_check.fetchone()["c"] == 0:
-        seed_sample_data()
+    cursor_cleanup = conn.cursor()
+    cursor_cleanup.execute("DELETE FROM learning_logs WHERE notes LIKE '%Solved Two Sum%' OR notes LIKE '%Solved Valid Palindrome%'")
 
 def reset_hub_data():
     """Wipes tasks, deadlines, and pipeline to start fresh."""
@@ -303,6 +289,7 @@ def reset_hub_data():
         cursor.execute("DELETE FROM deadlines")
         cursor.execute("DELETE FROM placement_pipeline")
         cursor.execute("DELETE FROM emails_raw")
+        cursor.execute("DELETE FROM learning_logs")
 
 # ------------------------------------------------------------------------------
 # SIDEBAR NAVIGATION & SYSTEM HEALTH
@@ -432,6 +419,8 @@ with k3:
     """, unsafe_allow_html=True)
 
 with k4:
+    solv_count = mastery_report.total_problems_solved
+    solv_sub = "Log practice in 'Learning' tab" if solv_count == 0 else "Across DSA, Python, SQL"
     st.markdown(f"""
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #10b981, #059669);"></div>
@@ -439,8 +428,8 @@ with k4:
             <span class="kpi-label">CODE PROBLEMS SOLVED</span>
             <span style="font-size: 1.2rem;">🧠</span>
         </div>
-        <div class="kpi-value" style="color: #34d399;">{mastery_report.total_problems_solved}</div>
-        <div class="kpi-sub">Across DSA, Python, SQL</div>
+        <div class="kpi-value" style="color: #34d399;">{solv_count}</div>
+        <div class="kpi-sub">{solv_sub}</div>
     </div>
     """, unsafe_allow_html=True)
 
