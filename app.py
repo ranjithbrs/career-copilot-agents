@@ -338,7 +338,16 @@ with st.sidebar:
         with st.spinner("Connecting to Gmail over IMAP..."):
             try:
                 res = email_agent.run_live_cycle()
-                st.toast(f"📥 Processed {res.get('processed', 0)} new unread emails.")
+                proc = res.get("processed", 0)
+                placements = len(res.get("placement_updates", []))
+                deadlines = len(res.get("deadlines_detected", []))
+                
+                if proc == 0:
+                    st.toast("📥 No new unread emails in inbox.")
+                elif placements > 0 or deadlines > 0:
+                    st.toast(f"📥 Scanned {proc} new emails: Extracted {placements} placement updates & {deadlines} deadlines!")
+                else:
+                    st.toast(f"📥 Scanned {proc} emails: Filtered as non-urgent noise/newsletters.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Gmail sync error: {e}")
@@ -623,6 +632,39 @@ with tab_briefing:
                         st.markdown(f"- ✅ <span style='color: #34d399;'>{c}</span>", unsafe_allow_html=True)
             else:
                 st.caption("No tasks finished yet today. Knock out a P0 or P1 item above!")
+
+    st.write("")
+    with st.expander("📬 **Live Email Intelligence Feed (Scanned Emails)**"):
+        with get_db_connection() as conn:
+            c_feed = conn.cursor()
+            c_feed.execute(
+                """
+                SELECT id, sender, subject, date_received, category, urgency, is_noise 
+                FROM emails_raw 
+                ORDER BY id DESC LIMIT 8
+                """
+            )
+            ingested = c_feed.fetchall()
+            if ingested:
+                st.caption("How your Email Intelligence Agent classified your recent unread emails:")
+                for em in ingested:
+                    clean_s = em["subject"].replace("\r", " ").replace("\n", " ").strip()
+                    clean_send = em["sender"].split("<")[0].replace('"', '').strip()
+                    if em["is_noise"]:
+                        badge = "<span class='pill pill-p0'>FILTERED NOISE</span>"
+                        action_sub = "Skipped (Promotional / Commercial Newsletter) — No action required"
+                    elif em["category"] in ["PLACEMENT_OA", "INTERVIEW_INVITE", "COLLEGE_NOTICE"]:
+                        badge = f"<span class='pill pill-placement'>{em['category']}</span>"
+                        action_sub = "Career Signal Extracted ➔ Routed to Pipeline & Action Items"
+                    else:
+                        badge = f"<span class='pill pill-learning'>{em['category']}</span>"
+                        action_sub = f"General Email ({em['urgency']} priority)"
+
+                    st.markdown(f"{badge} **{clean_send}**: {clean_s}", unsafe_allow_html=True)
+                    st.caption(f"Status: {action_sub}")
+                    st.divider()
+            else:
+                st.info("No emails scanned yet. Click 'Scan Unread Gmail' in the sidebar to fetch incoming emails.")
 
 # ==============================================================================
 # TAB 2: PLACEMENT PIPELINE & COMPANY INTERVIEW PREP

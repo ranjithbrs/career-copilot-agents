@@ -102,11 +102,12 @@ class EmailIntelligenceAgent:
                 })
 
             # 3. Placement Pipeline table
-            if parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION):
+            if parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION, EmailCategory.COLLEGE_NOTICE):
                 status_map = {
                     EmailCategory.PLACEMENT_OA: "OA_PENDING",
                     EmailCategory.INTERVIEW_INVITE: "INTERVIEW_SCHEDULED",
-                    EmailCategory.JOB_APPLICATION: "APPLIED"
+                    EmailCategory.JOB_APPLICATION: "APPLIED",
+                    EmailCategory.COLLEGE_NOTICE: "APPLIED"
                 }
                 status = status_map.get(parsed.category, "APPLIED")
                 test_link = parsed.important_urls[0] if parsed.important_urls else None
@@ -118,16 +119,16 @@ class EmailIntelligenceAgent:
                     """,
                     (
                         email_id,
-                        parsed.company_or_sender or "Unknown Company",
+                        parsed.company_or_sender or "Campus Placement",
                         "Software Engineer",
                         status,
                         test_link,
                         parsed.deadline_date,
-                        f"Action: {', '.join(parsed.action_items)}"
+                        f"Action: {', '.join(parsed.action_items)}" if parsed.action_items else "Campus placement notice"
                     )
                 )
                 results["placement_updates"].append({
-                    "company": parsed.company_or_sender,
+                    "company": parsed.company_or_sender or "Campus Placement",
                     "status": status,
                     "deadline": parsed.deadline_date
                 })
@@ -142,13 +143,15 @@ class EmailIntelligenceAgent:
             priority = priority_map.get(parsed.urgency, "P2")
 
             for item in parsed.action_items:
-                cursor.execute(
-                    """
-                    INSERT INTO action_items (origin_agent, task_description, priority, due_date)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    ("EMAIL_INTEL", item, priority, parsed.deadline_date)
-                )
+                cursor.execute("SELECT 1 FROM action_items WHERE task_description = ? AND is_completed = 0", (item,))
+                if not cursor.fetchone():
+                    cursor.execute(
+                        """
+                        INSERT INTO action_items (origin_agent, task_description, priority, due_date)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        ("EMAIL_INTEL", item, priority, parsed.deadline_date)
+                    )
 
     def run_mock_cycle(self) -> Dict[str, Any]:
         """Convenience method to run a test cycle using sample emails."""
