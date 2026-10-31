@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import json
+import os
 from pathlib import Path
 from database.connection import init_db, get_db_connection
 from agents.email_intel.agent import EmailIntelligenceAgent
@@ -11,19 +12,19 @@ from agents.linkedin.agent import LinkedInAgent
 from agents.learning.agent import LearningAgent
 from agents.project.agent import ProjectAgent
 from daemon import AutonomousOrchestrator
-import os
 import config.settings as settings
 
-# Dynamically sync Streamlit Cloud secrets to environment variables if present
+# ------------------------------------------------------------------------------
+# STREAMLIT CONFIG & SECRETS SYNCHRONIZATION
+# ------------------------------------------------------------------------------
 if hasattr(st, "secrets"):
     for k, v in st.secrets.items():
         os.environ[k] = str(v)
         if hasattr(settings, k):
             setattr(settings, k, str(v))
 
-# Page setup
 st.set_page_config(
-    page_title="Career Copilot AI",
+    page_title="Career Copilot AI - 6-Agent Personal OS",
     page_icon="💼",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -42,271 +43,698 @@ project_agent = ProjectAgent()
 has_email_creds = bool(os.getenv("EMAIL_USER") and os.getenv("EMAIL_PASSWORD"))
 orchestrator = AutonomousOrchestrator(use_live_email=has_email_creds)
 
-# Custom Header Styling
+# ------------------------------------------------------------------------------
+# HIGH-END SAAS DESIGN SYSTEM (DARK MODE & GLASSMORPHISM)
+# ------------------------------------------------------------------------------
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.2rem;
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    code, pre {
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+    
+    /* Top Header Container */
+    .top-hero {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 24px 28px;
+        margin-bottom: 24px;
+        backdrop-filter: blur(12px);
+    }
+    .hero-title {
+        font-size: 2.1rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 6px;
+        letter-spacing: -0.5px;
+    }
+    .hero-subtitle {
+        font-size: 0.98rem;
+        color: #94a3b8;
+        margin-bottom: 12px;
+        line-height: 1.5;
+    }
+    
+    /* KPI Metric Cards */
+    .kpi-card {
+        background: #111827;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 18px 20px;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+    }
+    .kpi-card:hover {
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+    }
+    .kpi-stripe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+    }
+    .kpi-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .kpi-label {
+        font-size: 0.8rem;
         font-weight: 700;
-        margin-bottom: 0px;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #94a3b8;
     }
-    .sub-header {
-        color: #888888;
-        font-size: 1.05rem;
-        margin-bottom: 25px;
+    .kpi-value {
+        font-size: 2.3rem;
+        font-weight: 800;
+        line-height: 1.1;
+        margin: 4px 0 6px 0;
     }
-    .metric-card {
-        background-color: #1a1c24;
-        border-radius: 10px;
-        padding: 15px;
-        border: 1px solid #2e3440;
+    .kpi-sub {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    
+    /* Task Cards */
+    .task-card {
+        background: #141c2e;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        transition: all 0.15s ease;
+    }
+    .task-card:hover {
+        border-color: rgba(99, 102, 241, 0.4);
+        background: #172238;
+    }
+    
+    /* Pill Badges */
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-right: 6px;
+        margin-bottom: 4px;
+    }
+    .pill-p0 {
+        background: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .pill-p1 {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .pill-p2 {
+        background: rgba(6, 182, 212, 0.15);
+        color: #38bdf8;
+        border: 1px solid rgba(6, 182, 212, 0.35);
+    }
+    .pill-learning {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+    .pill-placement {
+        background: rgba(139, 92, 246, 0.15);
+        color: #a78bfa;
+        border: 1px solid rgba(139, 92, 246, 0.35);
+    }
+    .pill-project {
+        background: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    .pill-success {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    /* LinkedIn Simulated Modal */
+    .linkedin-modal {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 20px;
+        position: relative;
+    }
+    .linkedin-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .linkedin-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #0a66c2 0%, #004182 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: #ffffff;
+        font-size: 1.1rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
+# ------------------------------------------------------------------------------
+# HELPER ACTIONS: DEMO SEEDER & CLEANER
+# ------------------------------------------------------------------------------
+def seed_sample_data():
+    """Populates realistic career copilot sample data so new users see a vibrant dashboard."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Sample Placement Applications
+        cursor.execute("SELECT COUNT(*) as c FROM placement_pipeline")
+        if cursor.fetchone()["c"] == 0:
+            cursor.execute(
+                """
+                INSERT INTO placement_pipeline (company_name, role, status, test_link, test_deadline, prep_notes)
+                VALUES 
+                ('Amazon', 'Software Development Engineer I', 'OA_PENDING', 'https://assessment.hackerrank.com/amz-sde-sample', 'Nov 5, 2026, 11:59 PM', 'Focus on 2D Grid BFS/DFS & 16 Leadership Principles'),
+                ('Google', 'Software Engineer (Campus 2026)', 'INTERVIEW_SCHEDULED', 'https://meet.google.com/xyz-copilot-interview', 'Nov 12, 2026, 3:00 PM', 'Technical Phone Screen: Advanced Graphs & System Architecture'),
+                ('Microsoft', 'Software Engineer', 'APPLIED', '', '', 'Referred by college alumni for Azure Core Systems')
+                """
+            )
+        
+        # 2. Sample Action Items
+        cursor.execute("SELECT COUNT(*) as c FROM action_items WHERE is_completed = 0")
+        if cursor.fetchone()["c"] == 0:
+            cursor.execute(
+                """
+                INSERT INTO action_items (origin_agent, task_description, priority, due_date)
+                VALUES 
+                ('PLACEMENT', 'Amazon Prep: Solve 2 Grid BFS/DFS problems (Rotting Oranges, Word Search)', 'P0', 'Tonight, 9 PM'),
+                ('LEARNING', 'Study [DSA]: Two Pointers & Sliding Window (Focus: Longest Substring Without Repeating Characters)', 'P1', 'Tomorrow'),
+                ('LEARNING', 'Study [PYTHON]: Decorators, Closures, and Wrappers (Focus: Build custom caching & retry decorator)', 'P1', 'Nov 2, 2026'),
+                ('PROJECT', 'Dev Task: career-copilot-agents: Polish README documentation and add architecture diagram', 'P1', 'Nov 3, 2026')
+                """
+            )
+
+        # 3. Sample Deadlines
+        cursor.execute("SELECT COUNT(*) as c FROM deadlines WHERE is_completed = 0")
+        if cursor.fetchone()["c"] == 0:
+            cursor.execute(
+                """
+                INSERT INTO deadlines (title, deadline_dt, category, action_url)
+                VALUES 
+                ('Amazon Online Assessment Part 1 (HackerRank)', 'Nov 5, 2026, 11:59 PM', 'ONLINE_ASSESSMENT', 'https://assessment.hackerrank.com/amz-sde-sample'),
+                ('Google Technical Screening Interview', 'Nov 12, 2026, 3:00 PM', 'INTERVIEW', 'https://meet.google.com/xyz-copilot-interview')
+                """
+            )
+
+def reset_hub_data():
+    """Wipes tasks, deadlines, and pipeline to start fresh."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM action_items")
+        cursor.execute("DELETE FROM deadlines")
+        cursor.execute("DELETE FROM placement_pipeline")
+        cursor.execute("DELETE FROM emails_raw")
+
+# ------------------------------------------------------------------------------
+# SIDEBAR NAVIGATION & SYSTEM HEALTH
+# ------------------------------------------------------------------------------
 with st.sidebar:
-    st.title("💼 Career Copilot")
-    st.caption("Autonomous 6-Agent Personal OS")
-    
+    st.markdown("## 💼 **Career Copilot**")
+    st.caption("Autonomous 6-Agent Personal Operating System")
     st.divider()
-    
-    # Status badges
+
     active_email = os.getenv("EMAIL_USER") or getattr(settings, "EMAIL_USER", "")
     active_gemini = os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", "")
 
-    st.markdown("**System Health**")
-    st.markdown(f"📧 **Inbox:** `{active_email or 'Not Configured'}`")
-    st.markdown(f"🤖 **AI Engine:** `{'Gemini Active' if active_gemini else 'Heuristic Mode'}`")
-    st.markdown(f"💾 **Database:** `SQLite (Cloud Hub)`")
-    
+    st.markdown("#### ⚡ **System Telemetry**")
+    if active_email:
+        st.markdown(f"📧 **Inbox:** <span class='pill pill-success'>LIVE SYNC</span><br><code style='font-size:0.75rem'>{active_email}</code>", unsafe_allow_html=True)
+    else:
+        st.markdown("📧 **Inbox:** <span class='pill pill-p0'>NOT CONFIGURED</span>", unsafe_allow_html=True)
+
+    if active_gemini:
+        st.markdown("🤖 **AI Model:** <span class='pill pill-placement'>GEMINI 2.5 FLASH</span>", unsafe_allow_html=True)
+    else:
+        st.markdown("🤖 **AI Model:** <span class='pill pill-p1'>HEURISTIC RADAR</span>", unsafe_allow_html=True)
+
+    st.markdown("💾 **Hub Storage:** <span class='pill pill-learning'>SQLITE CLOUD</span>", unsafe_allow_html=True)
     st.divider()
-    
-    # Quick Global Actions
-    st.markdown("### ⚡ Fast Actions")
-    if st.button("🚀 Run Full 6-Agent Sync", use_container_width=True, type="primary"):
-        with st.spinner("Running synchronized 6-agent cycle..."):
+
+    st.markdown("#### 🚀 **Autonomous Actions**")
+    if st.button("⚡ Run Full 6-Agent Sync", use_container_width=True, type="primary"):
+        with st.spinner("Executing autonomous 6-agent synchronization cycle..."):
             orchestrator.run_full_sync(send_telegram=False, print_output=False)
-            st.success("Synchronized all agents!")
+            st.toast("✅ All 6 agents successfully synchronized!")
             st.rerun()
 
-    if st.button("📬 Scan Live Gmail", use_container_width=True):
-        with st.spinner("Fetching unread emails from Gmail..."):
+    if st.button("📬 Scan Unread Gmail", use_container_width=True):
+        with st.spinner("Connecting to Gmail over IMAP..."):
             try:
                 res = email_agent.run_live_cycle()
-                st.success(f"Processed {res.get('processed', 0)} new emails!")
+                st.toast(f"📥 Processed {res.get('processed', 0)} new unread emails.")
                 st.rerun()
             except Exception as e:
-                st.error(f"Scan failed: {e}")
+                st.error(f"Gmail sync error: {e}")
+
+    if st.button("🪄 Load Sample Career Data", use_container_width=True):
+        seed_sample_data()
+        st.toast("✨ Loaded realistic placement and study targets!")
+        st.rerun()
+
+    with st.expander("⚙️ Data Management"):
+        if st.button("🗑️ Clear Hub Data", use_container_width=True):
+            reset_hub_data()
+            st.warning("Cleared all tasks, deadlines, and pipeline entries.")
+            st.rerun()
 
     st.divider()
-    st.caption(f"Local System Date: {datetime.date.today().strftime('%B %d, %Y')}")
+    st.caption(f"📅 **Date:** {datetime.date.today().strftime('%A, %b %d, %Y')}")
+    st.caption("🔒 All credentials securely stored in Secrets.")
 
-# Main Header
-st.markdown('<p class="main-header">🎯 Career & Productivity Intelligence</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Multi-agent executive copilot coordinating placements, deadlines, DSA streaks, and projects.</p>', unsafe_allow_html=True)
+# ------------------------------------------------------------------------------
+# TOP HERO BANNER & KPI METRICS
+# ------------------------------------------------------------------------------
+briefing = assistant.generate_morning_briefing()
+mastery_report = learning_agent.get_mastery_report()
 
-# Main Navigation Tabs
+hour = datetime.datetime.now().hour
+greeting = "Good morning" if 5 <= hour < 12 else "Good afternoon" if 12 <= hour < 17 else "Good evening"
+
+st.markdown(f"""
+<div class="top-hero">
+    <div class="hero-title">{greeting}, Ranjith! 👋</div>
+    <div class="hero-subtitle">
+        Your autonomous multi-agent copilot is monitoring your recruitment pipeline, tracking OA deadlines, scheduling spaced-repetition coding streaks, and auditing codebase health.
+    </div>
+    <div>
+        <span class="pill pill-placement">6 AGENTS RUNNING</span>
+        <span class="pill pill-learning">SPACED REPETITION ACTIVE</span>
+        <span class="pill pill-project">GIT HYGIENE AUDITOR</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# 4-Column KPI Grid
+k1, k2, k3, k4 = st.columns(4)
+
+with k1:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-stripe" style="background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
+        <div class="kpi-header">
+            <span class="kpi-label">🚨 Critical Actions</span>
+            <span style="font-size: 1.2rem;">⚡</span>
+        </div>
+        <div class="kpi-value" style="color: #f87171;">{len(briefing.p0_tasks)}</div>
+        <div class="kpi-sub">Immediate P0 priority items</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k2:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-stripe" style="background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+        <div class="kpi-header">
+            <span class="kpi-label">⏰ Active Deadlines</span>
+            <span style="font-size: 1.2rem;">⏳</span>
+        </div>
+        <div class="kpi-value" style="color: #fbbf24;">{len(briefing.active_deadlines)}</div>
+        <div class="kpi-sub">Upcoming tests & cutoffs</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k3:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-stripe" style="background: linear-gradient(90deg, #8b5cf6, #7c3aed);"></div>
+        <div class="kpi-header">
+            <span class="kpi-label">🎯 In Recruitment Pipeline</span>
+            <span style="font-size: 1.2rem;">💼</span>
+        </div>
+        <div class="kpi-value" style="color: #a78bfa;">{len(briefing.placement_events)}</div>
+        <div class="kpi-sub">Active OAs & interviews</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k4:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-stripe" style="background: linear-gradient(90deg, #10b981, #059669);"></div>
+        <div class="kpi-header">
+            <span class="kpi-label">🧠 Code Problems Solved</span>
+            <span style="font-size: 1.2rem;">🔥</span>
+        </div>
+        <div class="kpi-value" style="color: #34d399;">{mastery_report.total_problems_solved}</div>
+        <div class="kpi-sub">Across DSA, Python, SQL</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.write("")
+
+# ------------------------------------------------------------------------------
+# MAIN INTERACTIVE TABS
+# ------------------------------------------------------------------------------
 tab_briefing, tab_placement, tab_learning, tab_linkedin, tab_project = st.tabs([
-    "☀️ Morning Briefing",
+    "☀️ Command Center",
     "🎯 Placement Pipeline",
     "🧠 Learning & DSA Streak",
     "💼 LinkedIn Outreach",
-    "🛠️ Project & Git Health"
+    "🛠️ Project Health"
 ])
 
 # ==============================================================================
-# TAB 1: MORNING BRIEFING & TASKS
+# TAB 1: COMMAND CENTER (DAILY FOCUS & EISENHOWER PRIORITIZATION)
 # ==============================================================================
 with tab_briefing:
-    briefing = assistant.generate_morning_briefing()
-    
-    # Metric KPI Row
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("🚨 Critical P0 Tasks", len(briefing.p0_tasks))
-    with col2:
-        st.metric("⏰ Active Deadlines", len(briefing.active_deadlines))
-    with col3:
-        st.metric("🎯 Placement Pipeline", len(briefing.placement_events))
-    with col4:
-        st.metric("📋 Total Pending", briefing.total_pending)
-        
-    st.divider()
-
-    left_col, right_col = st.columns([1.2, 1])
+    left_col, right_col = st.columns([1.35, 1])
 
     with left_col:
-        st.subheader("🔥 Priorities (Eisenhower Matrix)")
+        st.markdown("### 🔥 **Daily Priorities & Action Items**")
+
+        filter_option = st.radio(
+            "Filter Task Stream",
+            ["All Active", "🚨 P0 Critical", "🧠 Study & Practice", "🎯 Placement & OAs", "🛠️ Project Dev"],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+
+        all_active = [(t, "P0") for t in briefing.p0_tasks] + [(t, "P1") for t in briefing.p1_tasks]
         
-        # P0 Tasks
-        if briefing.p0_tasks:
-            st.markdown("#### [!] P0 Critical Actions (Do First)")
-            for t in briefing.p0_tasks:
-                c1, c2 = st.columns([4, 1])
-                with c1:
-                    due = f" *(Due: {t.due_date})*" if t.due_date else ""
-                    st.markdown(f"**#{t.id}** {t.task_description}{due}")
-                with c2:
-                    if st.button("Complete", key=f"p0_done_{t.id}", use_container_width=True):
-                        assistant.mark_action_item_completed(t.id)
-                        st.rerun()
-            st.write("")
+        filtered = []
+        if filter_option == "All Active":
+            filtered = all_active
+        elif filter_option == "🚨 P0 Critical":
+            filtered = [(t, "P0") for t in briefing.p0_tasks]
+        elif filter_option == "🧠 Study & Practice":
+            filtered = [item for item in all_active if "Study" in item[0].task_description]
+        elif filter_option == "🎯 Placement & OAs":
+            filtered = [item for item in all_active if "Prep" in item[0].task_description or "OA" in item[0].task_description]
+        elif filter_option == "🛠️ Project Dev":
+            filtered = [item for item in all_active if "Dev Task" in item[0].task_description or "project" in item[0].task_description.lower()]
 
-        # P1 Tasks
-        if briefing.p1_tasks:
-            st.markdown("#### [*] P1 High Priority Focus")
-            for t in briefing.p1_tasks:
-                c1, c2 = st.columns([4, 1])
-                with c1:
-                    st.markdown(f"**#{t.id}** {t.task_description}")
-                with c2:
-                    if st.button("Complete", key=f"p1_done_{t.id}", use_container_width=True):
-                        assistant.mark_action_item_completed(t.id)
-                        st.rerun()
-                        
-        if not briefing.p0_tasks and not briefing.p1_tasks:
-            st.info("👋 Welcome! Click below to run a sync and populate your study targets, placement intelligence, and deadlines.")
-            if st.button("🚀 Populate Initial Data (Sync All Agents)", key="initial_sync_btn", type="primary", use_container_width=True):
-                with st.spinner("Syncing all 6 agents..."):
-                    orchestrator.run_full_sync(send_telegram=False, print_output=False)
-                    st.success("Synchronized all agents!")
-                    st.rerun()
+        if filtered:
+            for task, priority in filtered:
+                p_class = "pill-p0" if priority == "P0" else "pill-p1"
+                
+                # Category detection
+                tag_label = "TASK"
+                tag_class = "pill-project"
+                if "Prep" in task.task_description or "OA" in task.task_description:
+                    tag_label = "PLACEMENT"
+                    tag_class = "pill-placement"
+                elif "Study" in task.task_description:
+                    tag_label = "LEARNING"
+                    tag_class = "pill-learning"
+                elif "Dev Task" in task.task_description:
+                    tag_label = "PROJECT"
+                    tag_class = "pill-project"
 
-        # Add Custom Task Form
-        with st.expander("➕ Add Custom Task"):
+                with st.container(border=True):
+                    c_info, c_action = st.columns([4.2, 1.3])
+                    with c_info:
+                        st.markdown(
+                            f"<span class='pill {p_class}'>{priority}</span> "
+                            f"<span class='pill {tag_class}'>{tag_label}</span> "
+                            f"<span style='font-weight: 600; font-size: 0.95rem;'>{task.task_description}</span>",
+                            unsafe_allow_html=True
+                        )
+                        if task.due_date:
+                            st.caption(f"⏰ **Target Cutoff:** {task.due_date}")
+                    with c_action:
+                        b1, b2 = st.columns(2)
+                        with b1:
+                            if st.button("✅ Done", key=f"btn_done_{task.id}", use_container_width=True):
+                                assistant.mark_action_item_completed(task.id)
+                                st.toast(f"Marked task #{task.id} completed!")
+                                st.rerun()
+                        with b2:
+                            if st.button("🗑️", key=f"btn_del_{task.id}", use_container_width=True):
+                                assistant.delete_action_item(task.id)
+                                st.toast(f"Dismissed task #{task.id}")
+                                st.rerun()
+        else:
+            st.info("🎉 All clear! No pending tasks in this category. You're ahead of schedule today.")
+            if st.button("🎲 Add Next Spaced-Repetition Study Target", key="add_quick_target"):
+                learning_agent.get_daily_targets(inject_tasks=True)
+                st.toast("Injected fresh study targets!")
+                st.rerun()
+
+        # Add Custom Action Item
+        with st.expander("➕ **Add Custom Task to Daily Plan**"):
             with st.form("add_task_form"):
-                new_desc = st.text_input("Task Description")
-                prio = st.selectbox("Priority", ["P0", "P1", "P2", "P3"], index=1)
-                due = st.text_input("Due Date (Optional)", placeholder="e.g. Tonight, Nov 5")
-                submitted = st.form_submit_button("Add Task")
-                if submitted and new_desc:
-                    assistant.add_action_item(new_desc, priority=prio, due_date=due)
-                    st.success("Task added!")
-                    st.rerun()
+                new_desc = st.text_input("Task Objective", placeholder="e.g. Solve LeetCode #200 Number of Islands")
+                c_p, c_d = st.columns(2)
+                with c_p:
+                    p_sel = st.selectbox("Priority Level", ["P0 (Critical)", "P1 (High Focus)", "P2 (Normal)"], index=1)
+                with c_d:
+                    d_sel = st.text_input("Due Date / Time", placeholder="e.g. Tonight 9 PM, Tomorrow")
+                
+                if st.form_submit_button("Add to Daily Focus", type="primary", use_container_width=True):
+                    if new_desc:
+                        p_val = p_sel.split()[0]
+                        assistant.add_action_item(new_desc, priority=p_val, due_date=d_sel)
+                        st.toast("Task added to your plan!")
+                        st.rerun()
 
     with right_col:
-        st.subheader("⏰ Upcoming Deadlines")
+        st.markdown("### ⏰ **Upcoming Deadlines & Tests**")
         if briefing.active_deadlines:
             for d in briefing.active_deadlines:
                 with st.container(border=True):
-                    st.markdown(f"**{d.title}**")
-                    st.caption(f"Cutoff: {d.deadline_dt or 'ASAP'} | Category: {d.category}")
+                    st.markdown(f"#### {d.title}")
+                    st.markdown(
+                        f"<span class='pill pill-p1'>DUE: {d.deadline_dt or 'ASAP'}</span> "
+                        f"<span class='pill pill-placement'>{d.category or 'RECRUITMENT'}</span>",
+                        unsafe_allow_html=True
+                    )
                     if d.action_url:
-                        st.link_button("🔗 Open Action Link", d.action_url)
-                    if st.button("Mark Completed", key=f"dead_{d.id}"):
+                        st.link_button("🚀 Launch Assessment Link", d.action_url, use_container_width=True)
+                    
+                    if st.button("Mark Submitted / Completed", key=f"d_done_{d.id}", use_container_width=True):
                         assistant.mark_deadline_completed(d.id)
+                        st.toast("Deadline marked completed!")
                         st.rerun()
         else:
-            st.info("No active deadlines recorded.")
+            st.info("No active deadlines recorded. Keep preparing and monitoring emails!")
 
-        # Evening Review Expander
-        with st.expander("🌙 Evening Accountability Review"):
+        st.write("")
+        # Evening Accountability Card
+        with st.container(border=True):
+            st.markdown("### 🌙 **Evening Accountability Review**")
             review = assistant.generate_evening_review()
-            st.markdown(f"**Completed Today:** {review.completed_count} tasks")
-            st.markdown(f"**Rolling Over:** {review.pending_count} tasks")
+            
+            c_comp, c_pend = st.columns(2)
+            with c_comp:
+                st.metric("Completed Today", review.completed_count)
+            with c_pend:
+                st.metric("Pending Rollover", review.pending_count)
+
             if review.completed_tasks:
-                st.write("**Completed:**")
+                st.markdown("**Completed Actions:**")
                 for c in review.completed_tasks:
-                    st.markdown(f"- {c}")
+                    st.markdown(f"- ✅ <span style='color: #34d399;'>{c}</span>", unsafe_allow_html=True)
+            else:
+                st.caption("No tasks finished yet today. Knock out a P0 or P1 item above!")
 
 # ==============================================================================
-# TAB 2: PLACEMENT PIPELINE & COMPANY PREP
+# TAB 2: PLACEMENT PIPELINE & COMPANY INTERVIEW PREP
 # ==============================================================================
 with tab_placement:
-    st.subheader("🎯 Active Recruitment Funnel")
-    
+    st.markdown("### 🎯 **Recruitment Pipeline Tracker**")
     pipeline = placement_agent.get_pipeline()
+
+    # Form to add new application directly
+    with st.expander("➕ **Add New Job Application / Company**"):
+        with st.form("new_app_form"):
+            c_co, c_ro = st.columns(2)
+            with c_co:
+                in_co = st.text_input("Company Name", placeholder="e.g. Amazon, Google, Uber")
+            with c_ro:
+                in_ro = st.text_input("Role Title", value="Software Engineer")
+            
+            c_st, c_dl = st.columns(2)
+            with c_st:
+                in_st = st.selectbox("Current Status", [s.value for s in HiringStage], index=0)
+            with c_dl:
+                in_dl = st.text_input("Test / Interview Deadline", placeholder="e.g. Nov 10, 2026")
+            
+            in_url = st.text_input("Assessment or Interview Meeting Link (Optional)", placeholder="https://...")
+            in_notes = st.text_input("Notes / Strategy", placeholder="e.g. Focus on System Design and Dynamic Programming")
+            
+            if st.form_submit_button("Record Application", type="primary", use_container_width=True):
+                if in_co:
+                    placement_agent.add_pipeline_entry(
+                        company_name=in_co,
+                        role=in_ro,
+                        status=in_st,
+                        test_link=in_url,
+                        test_deadline=in_dl,
+                        prep_notes=in_notes
+                    )
+                    st.toast(f"Added {in_co} to recruitment pipeline!")
+                    st.rerun()
+
     if pipeline:
         for p in pipeline:
             with st.container(border=True):
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
+                col_brand, col_status, col_actions = st.columns([2.2, 1.4, 1.2])
+                with col_brand:
+                    # Status styling
+                    s_color = "pill-p1"
+                    if p.status == "OFFER":
+                        s_color = "pill-success"
+                    elif p.status in ["INTERVIEW_SCHEDULED", "OA_PENDING"]:
+                        s_color = "pill-placement"
+
                     st.markdown(f"### {p.company_name}")
-                    st.markdown(f"**Role:** {p.role} | **Status:** `{p.status}`")
-                    if p.test_deadline:
-                        st.caption(f"Deadline: {p.test_deadline}")
-                    if p.test_link:
-                        st.link_button("🔗 Launch Assessment / Meeting", p.test_link)
-                with col2:
-                    new_stage = st.selectbox(
-                        "Update Hiring Stage",
-                        [s.value for s in HiringStage],
-                        index=[s.value for s in HiringStage].index(p.status) if p.status in [s.value for s in HiringStage] else 0,
-                        key=f"stage_select_{p.id}"
+                    st.markdown(
+                        f"**Role:** `{p.role}` | **Status:** <span class='pill {s_color}'>{p.status}</span>",
+                        unsafe_allow_html=True
                     )
-                    if st.button("Update Stage", key=f"update_stage_btn_{p.id}"):
+                    if p.test_deadline:
+                        st.caption(f"⏰ **Cutoff:** {p.test_deadline}")
+                    if p.test_link:
+                        st.link_button("🚀 Launch Test / Portal", p.test_link)
+                
+                with col_status:
+                    current_idx = [s.value for s in HiringStage].index(p.status) if p.status in [s.value for s in HiringStage] else 0
+                    new_stage = st.selectbox("Stage", [s.value for s in HiringStage], index=current_idx, key=f"p_st_{p.id}")
+                    if new_stage != p.status:
                         placement_agent.advance_stage(p.id, HiringStage(new_stage))
-                        st.success(f"Updated {p.company_name} status to {new_stage}!")
+                        st.toast(f"Updated {p.company_name} stage to {new_stage}!")
                         st.rerun()
-                with col3:
-                    if st.button("📖 View Prep Dossier", key=f"prep_btn_{p.id}", use_container_width=True):
-                        st.session_state["selected_prep_company"] = p.company_name
+                
+                with col_actions:
+                    if st.button("📖 View Cheat-Sheet", key=f"view_strat_{p.id}", use_container_width=True):
+                        st.session_state["target_prep_company"] = p.company_name
+                    if st.button("🗑️ Remove", key=f"p_del_{p.id}", use_container_width=True):
+                        placement_agent.delete_pipeline_entry(p.id)
+                        st.toast(f"Removed {p.company_name} from pipeline.")
+                        st.rerun()
     else:
-        st.info("No companies currently in the placement pipeline.")
+        st.info("No applications in pipeline. Click '+ Add New Job Application' above or 'Load Sample Career Data' in the sidebar!")
 
     st.divider()
 
-    # Company Prep Dossier Generator
-    st.subheader("📚 Company-Specific Interview & OA Dossier")
-    prep_col1, prep_col2 = st.columns([1, 2])
-    with prep_col1:
-        selected_company = st.selectbox(
-            "Select Target Company",
-            ["Amazon", "Microsoft", "Google", "Custom Company..."]
-        )
-        custom_company_name = ""
-        if selected_company == "Custom Company...":
-            custom_company_name = st.text_input("Enter Company Name")
+    # --------------------------------------------------------------------------
+    # COMPANY INTERVIEW STRATEGY & CHEAT-SHEETS
+    # --------------------------------------------------------------------------
+    st.markdown("### 📚 **Company Interview Strategy & Cheat-Sheets**")
+    
+    col_ctrl, col_dossier = st.columns([1, 2])
+    
+    with col_ctrl:
+        default_co = st.session_state.get("target_prep_company", "Amazon")
+        options = ["Amazon", "Microsoft", "Google", "Custom Company..."]
+        init_idx = options.index(default_co) if default_co in options else 0
+        
+        sel_company = st.selectbox("Select Target Company", options, index=init_idx)
+        c_name = sel_company
+        if sel_company == "Custom Company...":
+            c_name = st.text_input("Enter Company Name", placeholder="e.g. Netflix, Uber, Atlassian")
+        
+        inject_box = st.checkbox("Inject Prep Tasks into Command Center", value=True)
+        
+        if st.button("Generate Strategy Cheat-Sheet", type="primary", use_container_width=True):
+            if c_name:
+                with st.spinner(f"Synthesizing high-yield interview strategy for {c_name}..."):
+                    dossier = placement_agent.generate_dossier(c_name, inject_tasks=inject_box)
+                    st.session_state["active_dossier"] = dossier
+                    st.toast(f"Generated {c_name} prep strategy!")
 
-        target_co = custom_company_name if selected_company == "Custom Company..." else selected_company
-        target_role = st.text_input("Target Role", value="Software Engineer")
-        inject_tasks = st.checkbox("Inject Prep Tasks into Morning Briefing", value=True)
+    with col_dossier:
+        active_dos = st.session_state.get("active_dossier", placement_agent.generate_dossier("Amazon", inject_tasks=False))
+        
+        st.markdown(f"#### 🛡️ **{active_dos.company_name} Interview Playbook**")
+        d_tab1, d_tab2, d_tab3 = st.tabs(["🧩 High-Yield DSA", "⚙️ CS Fundamentals", "🗣️ Cultural & Behavioral"])
+        
+        with d_tab1:
+            st.markdown("**Top Algorithmic Patterns Tested:**")
+            for pattern in active_dos.dsa_focus:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #8b5cf6; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
+                    <strong>{pattern}</strong>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with d_tab2:
+            st.markdown("**Core CS Fundamentals & System Architecture:**")
+            for cs in active_dos.cs_fundamentals:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #0ea5e9; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
+                    <strong>{cs}</strong>
+                </div>
+                """, unsafe_allow_html=True)
 
-        if st.button("Generate Prep Dossier", type="primary", use_container_width=True):
-            if target_co:
-                with st.spinner(f"Generating interview strategy for {target_co}..."):
-                    dossier = placement_agent.generate_dossier(target_co, role=target_role, inject_tasks=inject_tasks)
-                    st.session_state["active_dossier"] = dossier.full_dossier_text
-
-    with prep_col2:
-        if "active_dossier" in st.session_state:
-            st.text_area("Generated Cheat-Sheet", st.session_state["active_dossier"], height=380)
-        else:
-            # Default preview
-            d = placement_agent.generate_dossier("Amazon", inject_tasks=False)
-            st.text_area("Example Strategy (Amazon)", d.full_dossier_text, height=380)
+        with d_tab3:
+            st.markdown("**Behavioral Framework & Leadership Principles:**")
+            for b in active_dos.behavioral_topics:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #10b981; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
+                    <strong>{b}</strong>
+                </div>
+                """, unsafe_allow_html=True)
+            st.info("💡 **STAR Framework:** Structure answers as Situation ➔ Task ➔ Action ➔ Quantifiable Result.")
 
 # ==============================================================================
-# TAB 3: LEARNING & SPACED REPETITION
+# TAB 3: LEARNING & SPACED REPETITION ENGINE
 # ==============================================================================
 with tab_learning:
-    st.subheader("🧠 Daily Skill Mastery & Spaced Repetition")
+    st.markdown("### 🧠 **Spaced Repetition Skill & Practice Engine**")
     
-    # Daily Study Targets
-    st.markdown("#### 🎯 Today's Recommended Study Focus")
+    # Today's Targets
+    st.markdown("#### 🎯 **Today's High-Yield Problem Targets**")
     targets = learning_agent.get_daily_targets(inject_tasks=False)
-    t_col1, t_col2 = st.columns(2)
+    
+    tg_c1, tg_c2 = st.columns(2)
     for idx, t in enumerate(targets):
-        col = t_col1 if idx % 2 == 0 else t_col2
+        col = tg_c1 if idx % 2 == 0 else tg_c2
         with col:
             with st.container(border=True):
-                st.markdown(f"**[{t.subject.value}] {t.topic_name}**")
-                st.caption(f"Reason: {t.reason}")
-                st.markdown("**Recommended Practice:**")
+                st.markdown(f"#### <span class='pill pill-learning'>{t.subject.value}</span> {t.topic_name}", unsafe_allow_html=True)
+                st.caption(f"📌 **Status:** {t.reason}")
+                st.markdown("**Curated Practice Problems:**")
                 for p in t.recommended_problems:
                     st.markdown(f"- `{p}`")
+                
+                if st.button(f"Quick Log Problem Solved ({t.topic_name})", key=f"quick_solve_{idx}", use_container_width=True):
+                    learning_agent.log_session(t.topic_name, problems_solved=1, confidence=4, notes="Solved daily target")
+                    st.toast(f"Logged 1 problem for {t.topic_name}! Next review scheduled.")
+                    st.rerun()
 
     st.divider()
 
-    # Log Practice Session Form
-    log_col, stats_col = st.columns([1, 1.2])
-
-    with log_col:
-        st.markdown("#### 📝 Log Completed Study Session")
-        with st.form("log_study_form"):
-            topic = st.selectbox(
-                "Topic",
+    # Practice Logger & Mastery Matrix
+    c_log, c_matrix = st.columns([1, 1.3])
+    
+    with c_log:
+        st.markdown("#### 📝 **Log Completed Practice Session**")
+        with st.form("practice_session_form"):
+            t_choice = st.selectbox(
+                "Topic Practiced",
                 [
                     "Arrays & Hashing",
                     "Two Pointers & Sliding Window",
@@ -322,108 +750,159 @@ with tab_learning:
                     "Indexing & Query Optimization"
                 ]
             )
-            problems = st.number_input("Problems / Exercises Solved", min_value=1, max_value=20, value=2)
-            confidence = st.slider("Confidence Rating (1 = Difficult, 5 = Mastered)", 1, 5, 3)
-            notes = st.text_input("Quick Notes (Optional)", placeholder="e.g. Mastered topological sort with indegree array")
+            p_count = st.number_input("Problems Solved", min_value=1, max_value=25, value=2)
+            c_rating = st.select_slider(
+                "Confidence Rating",
+                options=[1, 2, 3, 4, 5],
+                value=3,
+                format_func=lambda x: {
+                    1: "1 - Struggled (Review Soon)",
+                    2: "2 - Needed Hints",
+                    3: "3 - Comfortable",
+                    4: "4 - Strong",
+                    5: "5 - Mastered (Extended Interval)"
+                }[x]
+            )
+            p_notes = st.text_input("Session Notes", placeholder="e.g. Mastered cycle detection logic")
             
             if st.form_submit_button("Record Practice Session", type="primary", use_container_width=True):
-                learning_agent.log_session(topic, problems_solved=problems, confidence=confidence, notes=notes)
-                st.success(f"Logged {problems} problems for {topic}! Spaced repetition updated.")
+                learning_agent.log_session(t_choice, problems_solved=p_count, confidence=c_rating, notes=p_notes)
+                st.toast(f"Recorded session for {t_choice}!")
                 st.rerun()
 
-    with stats_col:
-        st.markdown("#### 📊 Topic Mastery Breakdown")
-        summary = learning_agent.get_mastery_report()
-        st.code(summary.formatted_report, language="text")
+    with c_matrix:
+        st.markdown("#### 📊 **Topic Mastery Matrix**")
+        subj_filter = st.radio("Subject Filter", ["All", "DSA", "PYTHON", "SQL"], horizontal=True, label_visibility="collapsed")
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            if subj_filter == "All":
+                cursor.execute("SELECT subject, topic_name, mastery_level, next_review_due FROM learning_topics ORDER BY subject, mastery_level DESC")
+            else:
+                cursor.execute("SELECT subject, topic_name, mastery_level, next_review_due FROM learning_topics WHERE subject = ? ORDER BY mastery_level DESC", (subj_filter,))
+            
+            topics = cursor.fetchall()
+            for tp in topics:
+                col_topic, col_due = st.columns([3, 1.2])
+                with col_topic:
+                    tier_str = f"Tier {tp['mastery_level']}/5"
+                    pct = tp["mastery_level"] / 5.0
+                    st.progress(pct, text=f"**{tp['topic_name']}** ({tp['subject']}) — {tier_str}")
+                with col_due:
+                    st.caption(f"📅 Due: `{tp['next_review_due'] or 'Today'}`")
 
 # ==============================================================================
-# TAB 4: LINKEDIN OUTREACH HUB
+# TAB 4: LINKEDIN OUTREACH & NETWORKING
 # ==============================================================================
 with tab_linkedin:
-    st.subheader("💼 LinkedIn Outreach & Networking Hub")
+    st.markdown("### 💼 **LinkedIn Outreach & Networking Engine**")
     
-    outreach_type = st.radio("Choose Action", ["Recruiter Connection Note (< 300 Chars)", "Alumni Referral Request", "Build in Public Milestone Post"], horizontal=True)
+    outreach_type = st.radio(
+        "Choose Outreach Template",
+        ["Recruiter Connection Note (< 300 Chars)", "Alumni Referral Request", "Build in Public Milestone Post"],
+        horizontal=True
+    )
 
     if outreach_type == "Recruiter Connection Note (< 300 Chars)":
-        c1, c2 = st.columns([1, 1.5])
-        with c1:
-            co = st.text_input("Target Company", value="Microsoft", key="rec_co")
-            role = st.text_input("Role", value="Software Engineer", key="rec_role")
-            name = st.text_input("Recruiter Name (Optional)", placeholder="e.g. Sarah", key="rec_name")
-            if st.button("Draft Recruiter Note", type="primary"):
-                draft = linkedin_agent.draft_recruiter_note(co, role=role, recruiter_name=name)
-                st.session_state["current_draft"] = draft
-        with c2:
-            if "current_draft" in st.session_state and st.session_state["current_draft"].draft_type.value == "RECRUITER_NOTE":
-                d = st.session_state["current_draft"]
-                st.markdown(f"**Character Count:** `{d.character_count}/300` ✅ (Under limit)")
-                st.text_area("Ready to Copy:", d.content, height=150)
-                st.info("💡 Copy and paste directly into your LinkedIn connection request note!")
+        r_col1, r_col2 = st.columns([1, 1.5])
+        with r_col1:
+            co_in = st.text_input("Target Company", value="Microsoft", key="in_rec_co")
+            role_in = st.text_input("Role Title", value="Software Engineer", key="in_rec_ro")
+            rec_in = st.text_input("Recruiter Name (Optional)", placeholder="e.g. Sarah", key="in_rec_name")
+            
+            if st.button("Generate Recruiter Note", type="primary", use_container_width=True):
+                draft = linkedin_agent.draft_recruiter_note(co_in, role=role_in, recruiter_name=rec_in)
+                st.session_state["active_linkedin_draft"] = draft
+                st.toast("Drafted character-capped connection note!")
+
+        with r_col2:
+            draft = st.session_state.get("active_linkedin_draft")
+            if draft and draft.draft_type.value == "RECRUITER_NOTE":
+                char_pct = min(1.0, draft.character_count / 300.0)
+                st.markdown(f"**Character Count:** `{draft.character_count} / 300 characters` (LinkedIn Hard Limit)")
+                st.progress(char_pct)
+                
+                # Realistic LinkedIn Modal Simulation
+                st.markdown(f"""
+                <div class="linkedin-modal">
+                    <div class="linkedin-header">
+                        <div class="linkedin-avatar">in</div>
+                        <div>
+                            <div style="font-weight: 700; color: #f8fafc;">Add a note to your invitation</div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">LinkedIn members are more likely to accept invitations with a personal note.</div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.code(draft.content, language="markdown")
+                st.caption("💡 Click the copy button in the code box above, then paste directly into LinkedIn's note modal.")
 
     elif outreach_type == "Alumni Referral Request":
-        c1, c2 = st.columns([1, 1.5])
-        with c1:
-            co = st.text_input("Target Company", value="Amazon", key="alumni_co")
-            role = st.text_input("Role", value="Software Engineer", key="alumni_role")
-            name = st.text_input("Alumni Name", placeholder="e.g. Rahul", key="alumni_name")
-            job_id = st.text_input("Job Requisition ID (Optional)", placeholder="e.g. JOB-2026-SDE", key="alumni_job")
-            if st.button("Draft Referral Request", type="primary"):
-                draft = linkedin_agent.draft_alumni_referral(co, role=role, alumni_name=name, job_id=job_id)
-                st.session_state["current_draft"] = draft
-        with c2:
-            if "current_draft" in st.session_state and st.session_state["current_draft"].draft_type.value == "ALUMNI_REFERRAL":
-                d = st.session_state["current_draft"]
-                st.text_area("Ready to Copy:", d.content, height=250)
+        a_col1, a_col2 = st.columns([1, 1.5])
+        with a_col1:
+            a_co = st.text_input("Target Company", value="Amazon", key="in_al_co")
+            a_ro = st.text_input("Role Title", value="Software Engineer", key="in_al_ro")
+            a_name = st.text_input("Alumni Name", placeholder="e.g. Rahul", key="in_al_name")
+            a_job = st.text_input("Job ID (Optional)", placeholder="e.g. JOB-2026-SDE", key="in_al_job")
+            
+            if st.button("Generate Referral Message", type="primary", use_container_width=True):
+                draft = linkedin_agent.draft_alumni_referral(a_co, role=a_ro, alumni_name=a_name, job_id=a_job)
+                st.session_state["active_linkedin_draft"] = draft
+                st.toast("Drafted alumni referral request!")
+
+        with a_col2:
+            draft = st.session_state.get("active_linkedin_draft")
+            if draft and draft.draft_type.value == "ALUMNI_REFERRAL":
+                st.markdown("#### 📨 **Referral Message Draft**")
+                st.code(draft.content, language="markdown")
+                st.info("💡 High conversion template: highlights humility, specific role ID, and shared college background.")
 
     elif outreach_type == "Build in Public Milestone Post":
-        c1, c2 = st.columns([1, 1.5])
-        with c1:
-            topic = st.text_input("Milestone / Topic", value="Built an autonomous 6-agent career copilot in Python")
-            if st.button("Draft LinkedIn Post", type="primary"):
-                draft = linkedin_agent.draft_achievement_post(topic)
-                st.session_state["current_draft"] = draft
-        with c2:
-            if "current_draft" in st.session_state and st.session_state["current_draft"].draft_type.value == "MILESTONE_POST":
-                d = st.session_state["current_draft"]
-                st.text_area("Ready to Copy:", d.content, height=250)
+        m_col1, m_col2 = st.columns([1, 1.5])
+        with m_col1:
+            m_top = st.text_input("Milestone / Project Accomplishment", value="Built an autonomous 6-agent career copilot operating system in Python")
+            if st.button("Generate Milestone Post", type="primary", use_container_width=True):
+                draft = linkedin_agent.draft_achievement_post(m_top)
+                st.session_state["active_linkedin_draft"] = draft
+                st.toast("Generated engaging post draft!")
 
-    st.divider()
-    st.markdown("#### 📜 Saved Drafts History")
-    drafts = linkedin_agent.list_drafts(limit=5)
-    if drafts:
-        for d in drafts:
-            with st.expander(f"[{d.draft_type.value}] {d.target_company or 'Post'} - {d.character_count} chars"):
-                st.code(d.content, language="markdown")
-    else:
-        st.info("No drafts saved yet.")
+        with m_col2:
+            draft = st.session_state.get("active_linkedin_draft")
+            if draft and draft.draft_type.value == "MILESTONE_POST":
+                st.markdown("#### 📢 **LinkedIn Milestone Post Draft**")
+                st.code(draft.content, language="markdown")
+                st.caption("💡 Ready to copy-paste into your LinkedIn feed to build tech credibility.")
 
 # ==============================================================================
-# TAB 5: PROJECT & GIT HEALTH
+# TAB 5: PROJECT & CODEBASE HEALTH
 # ==============================================================================
 with tab_project:
-    st.subheader("🛠️ Codebase & Repository Health Auditor")
+    st.markdown("### 🛠️ **Project & Code Hygiene Auditor**")
     
-    p_col1, p_col2 = st.columns([1, 2])
-    with p_col1:
-        repo_input = st.text_input("Repository Directory", value=".")
-        if st.button("Run Audit", type="primary", use_container_width=True):
-            audit = project_agent.audit_repository(repo_path=repo_input, inject_task=True)
-            st.session_state["project_audit_data"] = audit
-            st.success("Audit complete!")
+    pr_col1, pr_col2 = st.columns([1, 2])
+    with pr_col1:
+        path_in = st.text_input("Repository Directory Path", value=".")
+        if st.button("Trigger Codebase Audit", type="primary", use_container_width=True):
+            audit = project_agent.audit_repository(path_in, inject_task=True)
+            st.session_state["project_audit_res"] = audit
+            st.toast("Repository audit completed!")
     
-    with p_col2:
-        audit_data = st.session_state.get("project_audit_data", project_agent.audit_repository(repo_path=".", inject_task=False))
-        st.markdown(f"### Project: `{audit_data.project_name}`")
-        st.progress(audit_data.health_score / 100, text=f"Health Score: {audit_data.health_score}/100")
+    with pr_col2:
+        audit_res = st.session_state.get("project_audit_res", project_agent.audit_repository(".", inject_task=False))
         
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric("Git Initialized", "Yes" if audit_data.has_git else "No")
-        with c2:
-            st.metric("Stall Status", "STALLED" if audit_data.is_stalled else "ACTIVE")
-        with c3:
-            st.metric("Tests Present", "Yes" if audit_data.has_tests else "No")
+        st.markdown(f"#### Repository: `{audit_res.project_name}`")
+        score_pct = audit_res.health_score / 100.0
+        st.progress(score_pct, text=f"Health Score: {audit_res.health_score} / 100")
+        
+        stat1, stat2, stat3 = st.columns(3)
+        with stat1:
+            st.metric("Git Repository", "Active" if audit_res.has_git else "Missing")
+        with stat2:
+            st.metric("Last Commit", f"{audit_res.days_since_last_commit or 0}d ago")
+        with stat3:
+            st.metric("Test Suites", "Present" if audit_res.has_tests else "Missing")
 
-        st.info(f"💡 Recommended Action: {audit_data.suggested_action}")
-        with st.expander("View Full Audit Log"):
-            st.text(audit_data.formatted_summary)
+        st.info(f"💡 **Recommended Next Engineering Action:** {audit_res.suggested_action}")
+        
+        with st.expander("🔍 View Complete Codebase Audit Log"):
+            st.text(audit_res.formatted_summary)

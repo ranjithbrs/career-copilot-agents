@@ -124,6 +124,34 @@ class PlacementAgent:
                 )
             return cursor.rowcount > 0
 
+    def add_pipeline_entry(
+        self,
+        company_name: str,
+        role: str = "Software Engineer",
+        status: str = "APPLIED",
+        test_link: Optional[str] = None,
+        test_deadline: Optional[str] = None,
+        prep_notes: Optional[str] = None
+    ) -> int:
+        """Add a new company application into the placement pipeline."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO placement_pipeline (company_name, role, status, test_link, test_deadline, prep_notes)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (company_name, role, status, test_link, test_deadline, prep_notes)
+            )
+            return cursor.lastrowid
+
+    def delete_pipeline_entry(self, entry_id: int) -> bool:
+        """Remove a company from the pipeline."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM placement_pipeline WHERE id = ?", (entry_id,))
+            return cursor.rowcount > 0
+
     def generate_dossier(self, company_name: str, role: str = "Software Engineer", inject_tasks: bool = True) -> CompanyDossier:
         """Generate a tailored interview prep dossier for a company and inject prep tasks into action_items."""
         co_key = company_name.strip().lower()

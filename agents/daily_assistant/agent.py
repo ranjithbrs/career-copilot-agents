@@ -234,11 +234,25 @@ class DailyAssistantAgent:
             cursor.execute("UPDATE action_items SET is_completed = 1 WHERE id = ?", (task_id,))
             return cursor.rowcount > 0
 
+    def delete_action_item(self, task_id: int) -> bool:
+        """Delete an action item."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM action_items WHERE id = ?", (task_id,))
+            return cursor.rowcount > 0
+
     def mark_deadline_completed(self, deadline_id: int) -> bool:
         """Mark a deadline as completed in the database."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE deadlines SET is_completed = 1 WHERE id = ?", (deadline_id,))
+            return cursor.rowcount > 0
+
+    def delete_deadline(self, deadline_id: int) -> bool:
+        """Delete a deadline from the database."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM deadlines WHERE id = ?", (deadline_id,))
             return cursor.rowcount > 0
 
     def add_action_item(self, task_description: str, priority: str = "P1", due_date: Optional[str] = None) -> int:
