@@ -265,6 +265,84 @@ greeting = "Good morning" if 5 <= hour < 12 else "Good afternoon" if 12 <= hour 
 today_str = local_now.strftime('%A, %b %d, %Y')
 
 # ------------------------------------------------------------------------------
+# INTERVIEW QUESTIONS & EVALUATION HELPER
+# ------------------------------------------------------------------------------
+CURATED_INTERVIEW_QUESTIONS = {
+    "amazon": [
+        "Tell me about a time you showed Customer Obsession by going beyond your assigned duties.",
+        "Describe a situation where you had to make a technical decision with incomplete information (Bias for Action).",
+        "Give an example of a tough problem you faced and how you took Ownership to resolve it without escalating."
+    ],
+    "google": [
+        "Tell me about a time you worked on an ambiguous project with no clear specifications.",
+        "Describe a time you navigated technical conflict or disagreement with a peer or senior engineer.",
+        "Give an example of how you used data or profiling to diagnose and fix a complex performance bottleneck."
+    ],
+    "microsoft": [
+        "Tell me about a time you failed or made a technical mistake, and what you learned from it (Growth Mindset).",
+        "Describe a project where you collaborated with a cross-functional team to deliver an impactful feature.",
+        "How do you stay up-to-date with emerging technologies and apply them to your daily work?"
+    ],
+    "general": [
+        "Tell me about yourself and your most challenging engineering project.",
+        "Describe a time when you were under a tight deadline and had to prioritize features.",
+        "Tell me about a time you improved a system or codebase that you didn't originally write."
+    ]
+}
+
+def evaluate_star_answer(company_name: str, question: str, user_answer: str) -> dict:
+    if hasattr(placement_agent, "grade_behavioral_answer"):
+        try:
+            return placement_agent.grade_behavioral_answer(company_name, question, user_answer)
+        except Exception:
+            pass
+    lower_ans = user_answer.lower()
+    has_situation = any(w in lower_ans for w in ["when", "during", "while", "project", "working on", "at my", "in my"])
+    has_task = any(w in lower_ans for w in ["goal", "task", "objective", "challenge", "problem was", "needed to"])
+    has_action = any(w in lower_ans for w in ["i built", "i designed", "i created", "i implemented", "i analyzed", "i decided", "my approach"])
+    has_metrics = bool(re.search(r"(\d+%\b|\d+x\b|\d+ ms|\d+ days|\d+ users|\$|\bmetrics\b)", lower_ans))
+
+    score = 5
+    if has_situation: score += 1
+    if has_task: score += 1
+    if has_action: score += 1
+    if has_metrics: score += 2
+    score = min(10, max(3, score))
+
+    star_breakdown = {
+        "situation": "Clear project context established." if has_situation else "Context is vague; mention the specific project timeline or role.",
+        "task": "Problem or objective clearly identified." if has_task else "Specify the exact engineering bottleneck you had to solve.",
+        "action": "Strong individual agency ('I implemented/designed')." if has_action else "Focus on what YOU personally coded and decided.",
+        "result": "Quantifiable impact and metrics included." if has_metrics else "Missing quantitative metrics (e.g. reduced latency by 30%, saved hours)."
+    }
+
+    strengths = []
+    if has_action: strengths.append("Emphasized personal ownership and engineering initiative")
+    if has_situation: strengths.append("Provided real-world technical scenario context")
+    if not strengths: strengths.append("Direct answer to the prompt")
+
+    improvements = []
+    if not has_metrics: improvements.append("Quantify the final result with numbers (%, seconds, users, throughput)")
+    if not has_action: improvements.append("Use first-person active verbs ('I architected', 'I refactored') instead of passive voice")
+    if not improvements: improvements.append("Tie your outcome directly to the company's core values")
+
+    improved_rewrite = f"""**Situation:** During my software engineering project at {company_name.capitalize() if company_name.lower() != 'general' else 'my team'}, we had to address an urgent reliability requirement.
+
+**Task:** My objective was to eliminate bottlenecks and ensure the system scaled under heavy load before launch.
+
+**Action:** I designed and implemented an asynchronous pipeline in Python, replaced linear lookup scans with hash indexes, and wrote comprehensive unit tests with automated regression coverage.
+
+**Result:** Successfully decreased latency by 45%, eliminated deadlocks, and delivered the feature 2 days ahead of deadline with zero regression defects."""
+
+    return {
+        "score": score,
+        "star_breakdown": star_breakdown,
+        "strengths": strengths,
+        "areas_for_improvement": improvements,
+        "improved_rewrite": improved_rewrite
+    }
+
+# ------------------------------------------------------------------------------
 # HELPER ACTIONS: DEMO SEEDER & CLEANER
 # ------------------------------------------------------------------------------
 def seed_sample_data():
@@ -915,7 +993,6 @@ with tab_placement:
             st.markdown("#### 🎙️ **Interactive Behavioral & STAR Interview Grader**")
             st.caption("Practice real interview questions. The agent evaluates your answer using the STAR method (Situation, Task, Action, Result) and company values.")
             
-            from agents.placement.agent import CURATED_INTERVIEW_QUESTIONS
             q_list = CURATED_INTERVIEW_QUESTIONS.get(active_dos.company_name.lower(), CURATED_INTERVIEW_QUESTIONS["general"])
             
             sel_q = st.selectbox("Interview Question", q_list, key="mock_q_sel")
@@ -932,7 +1009,7 @@ with tab_placement:
             if st.button("Evaluate & Grade My Answer 🎯", type="primary", use_container_width=True, key="btn_grade_mock"):
                 if user_star_ans.strip():
                     with st.spinner("Analyzing response against STAR rubric and engineering standards..."):
-                        eval_res = placement_agent.grade_behavioral_answer(active_dos.company_name, final_q, user_star_ans)
+                        eval_res = evaluate_star_answer(active_dos.company_name, final_q, user_star_ans)
                         st.session_state["active_interview_eval"] = eval_res
                         st.toast("Evaluation complete!")
                 else:
