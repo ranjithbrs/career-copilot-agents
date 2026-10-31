@@ -276,6 +276,25 @@ def seed_sample_data():
                 """
             )
 
+        # 4. Sample Learning Logs (so Problems Solved shows practice progress)
+        cursor.execute("SELECT COUNT(*) as c FROM learning_logs")
+        if cursor.fetchone()["c"] == 0:
+            cursor.execute(
+                """
+                INSERT INTO learning_logs (topic_name, problems_solved, confidence_rating, notes)
+                VALUES 
+                ('Arrays & Hashing', 2, 4, 'Solved Two Sum & Contains Duplicate'),
+                ('Two Pointers & Sliding Window', 1, 3, 'Solved Valid Palindrome')
+                """
+            )
+
+# Auto-seed baseline career data on first startup if pipeline is empty
+with get_db_connection() as conn:
+    c_check = conn.cursor()
+    c_check.execute("SELECT COUNT(*) as c FROM placement_pipeline")
+    if c_check.fetchone()["c"] == 0:
+        seed_sample_data()
+
 def reset_hub_data():
     """Wipes tasks, deadlines, and pipeline to start fresh."""
     with get_db_connection() as conn:
@@ -347,6 +366,11 @@ with st.sidebar:
 briefing = assistant.generate_morning_briefing()
 mastery_report = learning_agent.get_mastery_report()
 
+with get_db_connection() as conn:
+    cursor_kpi = conn.cursor()
+    cursor_kpi.execute("SELECT COUNT(*) as c FROM placement_pipeline")
+    total_pipeline_count = cursor_kpi.fetchone()["c"]
+
 st.markdown(f"""
 <div class="top-hero">
     <div class="hero-title">{greeting}, Ranjith! 👋</div>
@@ -365,15 +389,19 @@ st.markdown(f"""
 k1, k2, k3, k4 = st.columns(4)
 
 with k1:
+    p0_count = len(briefing.p0_tasks)
+    p1_count = len(briefing.p1_tasks)
+    tot_tasks = briefing.total_pending
+    val_color = "#f87171" if p0_count > 0 else "#fbbf24"
     st.markdown(f"""
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
         <div class="kpi-header">
-            <span class="kpi-label">CRITICAL ACTIONS</span>
-            <span style="font-size: 1.2rem;">🚨</span>
+            <span class="kpi-label">ACTIVE PRIORITIES</span>
+            <span style="font-size: 1.2rem;">🔥</span>
         </div>
-        <div class="kpi-value" style="color: #f87171;">{len(briefing.p0_tasks)}</div>
-        <div class="kpi-sub">Immediate P0 priority items</div>
+        <div class="kpi-value" style="color: {val_color};">{tot_tasks}</div>
+        <div class="kpi-sub">{p0_count} Critical P0 • {p1_count} High Focus</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -386,7 +414,7 @@ with k2:
             <span style="font-size: 1.2rem;">⏰</span>
         </div>
         <div class="kpi-value" style="color: #fbbf24;">{len(briefing.active_deadlines)}</div>
-        <div class="kpi-sub">Upcoming tests & cutoffs</div>
+        <div class="kpi-sub">Upcoming tests & interview cutoffs</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -395,11 +423,11 @@ with k3:
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #8b5cf6, #7c3aed);"></div>
         <div class="kpi-header">
-            <span class="kpi-label">IN RECRUITMENT PIPELINE</span>
+            <span class="kpi-label">RECRUITMENT PIPELINE</span>
             <span style="font-size: 1.2rem;">🎯</span>
         </div>
-        <div class="kpi-value" style="color: #a78bfa;">{len(briefing.placement_events)}</div>
-        <div class="kpi-sub">Active OAs & interviews</div>
+        <div class="kpi-value" style="color: #a78bfa;">{total_pipeline_count}</div>
+        <div class="kpi-sub">Applications actively tracked</div>
     </div>
     """, unsafe_allow_html=True)
 
