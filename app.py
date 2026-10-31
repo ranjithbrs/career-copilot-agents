@@ -69,7 +69,7 @@ has_email_creds = bool((os.getenv("EMAIL_USER") or getattr(settings, "EMAIL_USER
 orchestrator = AutonomousOrchestrator(use_live_email=has_email_creds)
 
 def purge_seen_newsletters() -> int:
-    """Deletes non-career newsletters (Medium, Google Cloud promo, etc.) and deduplicates pipeline."""
+    """Deletes non-career newsletters, seen alerts (Google, GitHub, Medium), and deduplicates pipeline."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -80,7 +80,15 @@ def purge_seen_newsletters() -> int:
                OR sender LIKE '%substack%' 
                OR sender LIKE '%twitter%'
                OR sender LIKE '%x.com%'
+               OR sender LIKE '%security@google%'
+               OR sender LIKE '%github.com%'
+               OR subject LIKE '%Security alert%'
+               OR subject LIKE '%Scaling AI%'
+               OR subject LIKE '%Windows with Google%'
+               OR subject LIKE '%OAuth application%'
                OR is_noise = 1
+               OR category = 'GENERAL'
+               OR category = 'NEWSLETTER_SPAM'
             """
         )
         deleted = cursor.rowcount
@@ -93,6 +101,14 @@ def purge_seen_newsletters() -> int:
             )
             """
         )
+        return deleted
+
+def clear_all_ingested_emails() -> int:
+    """Completely resets the ingested email feed so only freshly arriving unread emails appear."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM emails_raw")
+        deleted = cursor.rowcount
         return deleted
 
 def reprocess_stored_emails() -> dict:
@@ -655,6 +671,8 @@ with get_db_connection() as conn:
     cursor_kpi = conn.cursor()
     cursor_kpi.execute("SELECT COUNT(*) as c FROM placement_pipeline")
     total_pipeline_count = cursor_kpi.fetchone()["c"]
+    cursor_kpi.execute("SELECT COUNT(*) as c FROM emails_raw WHERE is_noise = 0 AND category IN ('PLACEMENT_OA', 'INTERVIEW_INVITE', 'COLLEGE_NOTICE', 'JOB_APPLICATION', 'DEADLINE_ALERT')")
+    total_career_signals = cursor_kpi.fetchone()["c"]
 
 hero_left, hero_right = st.columns([2.6, 1.4])
 
@@ -709,8 +727,8 @@ with hero_right:
             except Exception as e:
                 st.error(f"Sync error: {e}")
 
-# 4-Column KPI Grid
-k1, k2, k3, k4 = st.columns(4)
+# 5-Column High-Impact KPI Grid
+k1, k2, k3, k4, k5 = st.columns(5)
 
 with k1:
     p0_count = len(briefing.p0_tasks)
@@ -722,10 +740,10 @@ with k1:
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
         <div class="kpi-header">
             <span class="kpi-label">ACTIVE PRIORITIES</span>
-            <span style="font-size: 1.2rem;">🔥</span>
+            <span style="font-size: 1.15rem;">🔥</span>
         </div>
-        <div class="kpi-value" style="color: {val_color};">{tot_tasks}</div>
-        <div class="kpi-sub">{p0_count} Critical P0 • {p1_count} High Focus</div>
+        <div class="kpi-value" style="color: {val_color}; font-size: 2.2rem;">{tot_tasks}</div>
+        <div class="kpi-sub">{p0_count} Critical • {p1_count} High</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -735,10 +753,10 @@ with k2:
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
         <div class="kpi-header">
             <span class="kpi-label">ACTIVE DEADLINES</span>
-            <span style="font-size: 1.2rem;">⏰</span>
+            <span style="font-size: 1.15rem;">⏰</span>
         </div>
-        <div class="kpi-value" style="color: #fbbf24;">{len(briefing.active_deadlines)}</div>
-        <div class="kpi-sub">Upcoming tests & interview cutoffs</div>
+        <div class="kpi-value" style="color: #fbbf24; font-size: 2.2rem;">{len(briefing.active_deadlines)}</div>
+        <div class="kpi-sub">Upcoming tests & cutoffs</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -748,24 +766,41 @@ with k3:
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #8b5cf6, #7c3aed);"></div>
         <div class="kpi-header">
             <span class="kpi-label">RECRUITMENT PIPELINE</span>
-            <span style="font-size: 1.2rem;">🎯</span>
+            <span style="font-size: 1.15rem;">🎯</span>
         </div>
-        <div class="kpi-value" style="color: #a78bfa;">{total_pipeline_count}</div>
+        <div class="kpi-value" style="color: #a78bfa; font-size: 2.2rem;">{total_pipeline_count}</div>
         <div class="kpi-sub">Applications actively tracked</div>
     </div>
     """, unsafe_allow_html=True)
 
 with k4:
+    last_res = st.session_state.get("last_sync_res", {})
+    new_unseen = last_res.get("processed", 0)
+    inbox_val = f"{new_unseen} New" if new_unseen > 0 else "0 Unread"
+    inbox_color = "#38bdf8" if new_unseen == 0 else "#34d399"
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-stripe" style="background: linear-gradient(90deg, #06b6d4, #0284c7);"></div>
+        <div class="kpi-header">
+            <span class="kpi-label">INBOX INTELLIGENCE</span>
+            <span style="font-size: 1.15rem;">📬</span>
+        </div>
+        <div class="kpi-value" style="color: {inbox_color}; font-size: 1.85rem;">{inbox_val}</div>
+        <div class="kpi-sub">{total_career_signals} career signals extracted</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k5:
     solv_count = mastery_report.total_problems_solved
-    solv_sub = "Log practice in 'Learning' tab" if solv_count == 0 else "Across DSA, Python, SQL"
+    solv_sub = "Log in 'Learning' tab" if solv_count == 0 else "Across DSA, Python, SQL"
     st.markdown(f"""
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #10b981, #059669);"></div>
         <div class="kpi-header">
-            <span class="kpi-label">CODE PROBLEMS SOLVED</span>
-            <span style="font-size: 1.2rem;">🧠</span>
+            <span class="kpi-label">PROBLEMS SOLVED</span>
+            <span style="font-size: 1.15rem;">🧠</span>
         </div>
-        <div class="kpi-value" style="color: #34d399;">{solv_count}</div>
+        <div class="kpi-value" style="color: #34d399; font-size: 2.2rem;">{solv_count}</div>
         <div class="kpi-sub">{solv_sub}</div>
     </div>
     """, unsafe_allow_html=True)
@@ -1043,8 +1078,8 @@ with tab_briefing:
                 st.caption("No tasks finished yet today. Knock out a P0 or P1 item above!")
 
     st.write("")
-    with st.expander("📬 **Live Email Intelligence Feed (Scanned Emails)**", expanded=False):
-        c_feed_h1, c_feed_h2, c_feed_h3 = st.columns([2, 1, 1])
+    with st.expander("📬 **Live Email Intelligence Feed (Scanned Emails)**", expanded=True):
+        c_feed_h1, c_feed_h2, c_feed_h3, c_feed_h4 = st.columns([1.8, 1, 1.2, 1])
         with c_feed_h1:
             st.caption("How your Email Intelligence Agent triages your unread incoming emails:")
         with c_feed_h2:
@@ -1054,10 +1089,48 @@ with tab_briefing:
                     st.toast(f"Re-triaged! Promoted {ret['promoted_placements']} opportunities to Placement Pipeline!")
                     st.rerun()
         with c_feed_h3:
-            if st.button("🧹 Purge Newsletters", key="btn_purge_feed", use_container_width=True):
+            if st.button("🧹 Purge Non-Career", key="btn_purge_feed", use_container_width=True):
                 del_cnt = purge_seen_newsletters()
-                st.toast(f"Purged {del_cnt} noisy newsletters!")
+                st.toast(f"Purged {del_cnt} non-career & seen emails!")
                 st.rerun()
+        with c_feed_h4:
+            if st.button("🗑️ Reset Feed", key="btn_reset_feed", use_container_width=True):
+                clear_all_ingested_emails()
+                st.toast("Email feed reset! Ready for newly arriving unread emails.")
+                st.rerun()
+
+        # Dedicated Email Intelligence Count Boxes
+        with get_db_connection() as conn:
+            c_st = conn.cursor()
+            c_st.execute("SELECT COUNT(*) as cnt FROM emails_raw WHERE is_noise = 0")
+            feed_career_cnt = c_st.fetchone()["cnt"]
+            c_st.execute("SELECT COUNT(*) as cnt FROM emails_raw WHERE is_noise = 1")
+            feed_noise_cnt = c_st.fetchone()["cnt"]
+            c_st.execute("SELECT COUNT(*) as cnt FROM placement_pipeline")
+            feed_apps_cnt = c_st.fetchone()["cnt"]
+
+        last_res = st.session_state.get("last_sync_res", {})
+        live_unread_now = last_res.get("processed", 0)
+
+        st.markdown(f"""
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 10px 0 16px 0;">
+            <div style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 10px; padding: 12px; text-align: center;">
+                <div style="font-size: 0.72rem; text-transform: uppercase; color: #38bdf8; font-weight: 700; letter-spacing: 0.5px;">UNREAD EMAILS INGESTED</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: #ffffff; margin-top: 2px;">{live_unread_now}</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Fresh unread from last cycle</div>
+            </div>
+            <div style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 10px; padding: 12px; text-align: center;">
+                <div style="font-size: 0.72rem; text-transform: uppercase; color: #a78bfa; font-weight: 700; letter-spacing: 0.5px;">CAREER SIGNALS EXTRACTED</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: #ffffff; margin-top: 2px;">{feed_career_cnt}</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">OAs, interviews & job alerts</div>
+            </div>
+            <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 12px; text-align: center;">
+                <div style="font-size: 0.72rem; text-transform: uppercase; color: #34d399; font-weight: 700; letter-spacing: 0.5px;">PIPELINE APPLICATIONS</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: #ffffff; margin-top: 2px;">{feed_apps_cnt}</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Applications actively tracked</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         with get_db_connection() as conn:
             c_feed = conn.cursor()
@@ -1065,6 +1138,7 @@ with tab_briefing:
                 """
                 SELECT id, sender, subject, date_received, category, urgency, is_noise 
                 FROM emails_raw 
+                WHERE is_noise = 0
                 ORDER BY id DESC LIMIT 10
                 """
             )
@@ -1104,7 +1178,15 @@ with tab_briefing:
                     </div>
                     """, unsafe_allow_html=True)
             else:
-                st.info("No emails scanned yet. Live Auto-Sync checks your inbox every 90 seconds, or click 'Sync Inbox Now' above.")
+                st.markdown("""
+                <div style="text-align: center; padding: 26px 16px; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px dashed rgba(255, 255, 255, 0.1); margin: 8px 0;">
+                    <div style="font-size: 2.2rem; margin-bottom: 6px;">🎉</div>
+                    <div style="font-weight: 700; font-size: 1.05rem; color: #f8fafc;">Inbox is All Caught Up!</div>
+                    <div style="font-size: 0.82rem; color: #94a3b8; margin-top: 4px;">
+                        No unread career emails pending in inbox. Background Live Sync is monitoring for new recruitment alerts every 90 seconds.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
 # ==============================================================================
 # TAB 2: PLACEMENT PIPELINE & COMPANY INTERVIEW PREP
