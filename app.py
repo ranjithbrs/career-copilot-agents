@@ -63,6 +63,17 @@ st.markdown("""
     .stAppViewContainer {
         background-color: #0b0f19;
     }
+
+    /* Responsive Content Constraints (Centers and prevents distortion on ultra-wide & zoomed-out screens) */
+    .block-container {
+        max-width: 1440px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 4rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
     
     /* Sidebar Styling */
     [data-testid="stSidebar"] {
@@ -560,13 +571,17 @@ with tab_briefing:
                         f"<span class='pill pill-placement'>{d.category or 'RECRUITMENT'}</span>",
                         unsafe_allow_html=True
                     )
-                    if d.action_url:
-                        st.link_button("🚀 Launch Assessment Link", d.action_url, use_container_width=True)
-                    
-                    if st.button("Mark Submitted / Completed", key=f"d_done_{d.id}", use_container_width=True):
-                        assistant.mark_deadline_completed(d.id)
-                        st.toast("Deadline marked completed!")
-                        st.rerun()
+                    dl_b1, dl_b2 = st.columns(2)
+                    with dl_b1:
+                        if d.action_url:
+                            st.link_button("🚀 Launch Test", d.action_url, use_container_width=True)
+                        else:
+                            st.caption("No direct link")
+                    with dl_b2:
+                        if st.button("Mark Done ✅", key=f"d_done_{d.id}", use_container_width=True):
+                            assistant.mark_deadline_completed(d.id)
+                            st.toast("Deadline marked completed!")
+                            st.rerun()
         else:
             with st.container(border=True):
                 st.markdown("#### 📅 No Active Deadlines Recorded")
