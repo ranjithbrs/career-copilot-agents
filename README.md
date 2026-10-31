@@ -4,6 +4,22 @@ An interconnected 6-agent personal career and productivity operating system desi
 
 ---
 
+## 💡 What is this Project in 30 Seconds? (In Plain English)
+
+Searching for jobs, tracking placement applications, preparing for technical interviews, and managing project deadlines can quickly get overwhelming when scattered across inboxes, spreadsheets, and sticky notes.
+
+**Career Copilot Multi-Agent System** solves this by acting as your personal 24/7 AI career management team. Six smart AI assistants coordinate seamlessly in the background:
+- 📩 **Email Radar Agent**: Scans incoming messages, immediately identifying interview invites, assessment links, and recruiter updates so nothing falls through the cracks.
+- 🎯 **Placement Tracker Agent**: Automatically organizes every job application into a visual funnel (*Applied ➡️ Interviewing ➡️ Offered*).
+- 📚 **Study & Skill Agent**: Tracks topics you are studying and recommends targeted revision before tests.
+- 💼 **Project Progress Agent**: Logs development milestones, tasks, and GitHub commits.
+- ⏰ **Daily Briefing Assistant**: Prepares a clear morning summary of today's highest-priority action items.
+- 🤝 **Networking Agent**: Drafts polite, professional follow-up messages for recruiters and connections.
+
+Everything connects directly to a clean, interactive **Streamlit web dashboard** running locally in your browser!
+
+---
+
 ## 🏗️ Project Architecture
 
 ```
