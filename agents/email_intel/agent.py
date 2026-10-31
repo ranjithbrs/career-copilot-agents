@@ -101,37 +101,40 @@ class EmailIntelligenceAgent:
                     "deadline": parsed.deadline_date
                 })
 
-            # 3. Placement Pipeline table
-            if parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION, EmailCategory.COLLEGE_NOTICE):
-                status_map = {
-                    EmailCategory.PLACEMENT_OA: "OA_PENDING",
-                    EmailCategory.INTERVIEW_INVITE: "INTERVIEW_SCHEDULED",
-                    EmailCategory.JOB_APPLICATION: "APPLIED",
-                    EmailCategory.COLLEGE_NOTICE: "APPLIED"
-                }
-                status = status_map.get(parsed.category, "APPLIED")
-                test_link = parsed.important_urls[0] if parsed.important_urls else None
-                
-                cursor.execute(
-                    """
-                    INSERT INTO placement_pipeline (email_id, company_name, role, status, test_link, test_deadline, prep_notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        email_id,
-                        parsed.company_or_sender or "Campus Placement",
-                        "Software Engineer",
-                        status,
-                        test_link,
-                        parsed.deadline_date,
-                        f"Action: {', '.join(parsed.action_items)}" if parsed.action_items else "Campus placement notice"
+            # 3. Placement Pipeline table (strictly for genuine career signals with company deduplication)
+            if not parsed.is_noise and parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION, EmailCategory.COLLEGE_NOTICE):
+                co_name = parsed.company_or_sender or "Campus Placement"
+                cursor.execute("SELECT 1 FROM placement_pipeline WHERE LOWER(company_name) = LOWER(?)", (co_name,))
+                if not cursor.fetchone():
+                    status_map = {
+                        EmailCategory.PLACEMENT_OA: "OA_PENDING",
+                        EmailCategory.INTERVIEW_INVITE: "INTERVIEW_SCHEDULED",
+                        EmailCategory.JOB_APPLICATION: "APPLIED",
+                        EmailCategory.COLLEGE_NOTICE: "APPLIED"
+                    }
+                    status = status_map.get(parsed.category, "APPLIED")
+                    test_link = parsed.important_urls[0] if parsed.important_urls else None
+                    
+                    cursor.execute(
+                        """
+                        INSERT INTO placement_pipeline (email_id, company_name, role, status, test_link, test_deadline, prep_notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            email_id,
+                            co_name,
+                            "Software Engineer",
+                            status,
+                            test_link,
+                            parsed.deadline_date,
+                            f"Action: {', '.join(parsed.action_items)}" if parsed.action_items else "Campus placement notice"
+                        )
                     )
-                )
-                results["placement_updates"].append({
-                    "company": parsed.company_or_sender or "Campus Placement",
-                    "status": status,
-                    "deadline": parsed.deadline_date
-                })
+                    results["placement_updates"].append({
+                        "company": co_name,
+                        "status": status,
+                        "deadline": parsed.deadline_date
+                    })
 
             # 4. Action items
             priority_map = {
@@ -184,9 +187,10 @@ class EmailIntelligenceAgent:
                 )
                 parsed = self.extractor.extract(raw)
                 
-                # Check if this qualifies as a placement or campus signal
-                if parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION, EmailCategory.COLLEGE_NOTICE):
-                    cursor.execute("SELECT 1 FROM placement_pipeline WHERE email_id = ?", (r["id"],))
+                # Check if this qualifies as a genuine placement or campus signal
+                if not parsed.is_noise and parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION, EmailCategory.COLLEGE_NOTICE):
+                    co_name = parsed.company_or_sender or "Campus Placement"
+                    cursor.execute("SELECT 1 FROM placement_pipeline WHERE LOWER(company_name) = LOWER(?)", (co_name,))
                     if not cursor.fetchone():
                         status = "INTERVIEW_SCHEDULED" if parsed.category == EmailCategory.INTERVIEW_INVITE else "OA_PENDING" if parsed.category == EmailCategory.PLACEMENT_OA else "APPLIED"
                         cursor.execute(
@@ -196,7 +200,7 @@ class EmailIntelligenceAgent:
                             """,
                             (
                                 r["id"],
-                                parsed.company_or_sender or "Campus Placement",
+                                co_name,
                                 "Software Engineer",
                                 status,
                                 parsed.important_urls[0] if parsed.important_urls else None,
@@ -214,3 +218,30 @@ class EmailIntelligenceAgent:
                 results["reprocessed"] += 1
 
         return results
+
+    def purge_seen_newsletters(self) -> int:
+        """Deletes non-career newsletters (Medium, Google Cloud promo, etc.) and deduplicates pipeline."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Delete Medium and newsletter spam rows from emails_raw
+            cursor.execute(
+                """
+                DELETE FROM emails_raw 
+                WHERE sender LIKE '%medium.com%' 
+                   OR sender LIKE '%quora%' 
+                   OR sender LIKE '%substack%' 
+                   OR is_noise = 1
+                """
+            )
+            deleted = cursor.rowcount
+            
+            # Remove duplicate placement pipeline entries, keeping the lowest ID for each company
+            cursor.execute(
+                """
+                DELETE FROM placement_pipeline 
+                WHERE id NOT IN (
+                    SELECT MIN(id) FROM placement_pipeline GROUP BY LOWER(company_name)
+                )
+                """
+            )
+            return deleted

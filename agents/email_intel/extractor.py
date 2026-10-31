@@ -77,16 +77,32 @@ Body:
 
     def _extract_with_heuristics(self, email: RawEmail) -> ParsedEmail:
         """Fast offline rule-based heuristic parser for testing and resilience."""
+        sender_lower = email.sender.lower()
         content = f"{email.subject} {email.body}".lower()
+
+        # 0. Intercept known publication, social, and newsletter senders immediately
+        if any(d in sender_lower for d in ["medium.com", "quora.com", "substack.com", "reddit.com", "twitter.com", "x.com", "youtube.com", "spotify.com", "cloudplatform-noreply@google.com"]):
+            clean_s = email.subject.replace("\r", " ").replace("\n", " ").strip()[:100]
+            send_name = "Medium" if "medium.com" in sender_lower else "Newsletter"
+            return ParsedEmail(
+                category=EmailCategory.NEWSLETTER_SPAM,
+                urgency=UrgencyLevel.LOW,
+                company_or_sender=send_name,
+                subject_summary=clean_s,
+                deadline_date=None,
+                action_items=[],
+                important_urls=[],
+                is_noise=True,
+                confidence_score=0.95
+            )
 
         # Comprehensive career and hiring signals (strictly protected from spam filter)
         career_keywords = [
             "interview", "assessment", "placement", "shortlist", "hiring", "hire", "unstop",
-            "job", "internship", "career", "recruitment", "engineer", "developer", "coding test",
+            "job opening", "job application", "campus drive", "recruitment drive", "coding test",
             "online test", "hackerrank", "mettl", "codesignal", "test link", "assessment link",
             "superset", "hirepro", "cocubes", "myanatomy", "cuvette", "naukri", "wellfound",
-            "outskill", "internshala", "infosys", "tcs", "wipro", "cognizant", "accenture",
-            "amazon", "google", "microsoft", "round", "technical screening", "dsa", "leetcode"
+            "internshala", "infosys", "tcs", "wipro", "cognizant", "accenture", "technical screening"
         ]
 
         has_career_signal = any(kw in content for kw in career_keywords)

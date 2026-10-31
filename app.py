@@ -67,6 +67,12 @@ project_agent = ProjectAgent()
 has_email_creds = bool((os.getenv("EMAIL_USER") or getattr(settings, "EMAIL_USER", "")) and (os.getenv("EMAIL_PASSWORD") or getattr(settings, "EMAIL_PASSWORD", "")))
 orchestrator = AutonomousOrchestrator(use_live_email=has_email_creds)
 
+# Automatic startup migration: purge seen non-career newsletters & deduplicate pipeline
+try:
+    email_agent.purge_seen_newsletters()
+except Exception:
+    pass
+
 # ------------------------------------------------------------------------------
 # HIGH-END SAAS DESIGN SYSTEM (UNIFIED DARK PALETTE & GLASSMORPHISM)
 # ------------------------------------------------------------------------------
@@ -962,15 +968,20 @@ with tab_briefing:
 
     st.write("")
     with st.expander("📬 **Live Email Intelligence Feed (Scanned Emails)**", expanded=False):
-        c_feed_h1, c_feed_h2 = st.columns([2.6, 1.4])
+        c_feed_h1, c_feed_h2, c_feed_h3 = st.columns([2, 1, 1])
         with c_feed_h1:
-            st.caption("How your Email Intelligence Agent triages and classifies your unread incoming emails:")
+            st.caption("How your Email Intelligence Agent triages your unread incoming emails:")
         with c_feed_h2:
-            if st.button("⚡ Re-Triage Opportunities", key="btn_retriage_feed", use_container_width=True):
+            if st.button("⚡ Re-Triage", key="btn_retriage_feed", use_container_width=True):
                 with st.spinner("Re-triaging emails against enhanced career database..."):
                     ret = email_agent.reprocess_stored_emails()
                     st.toast(f"Re-triaged! Promoted {ret['promoted_placements']} opportunities to Placement Pipeline!")
                     st.rerun()
+        with c_feed_h3:
+            if st.button("🧹 Purge Newsletters", key="btn_purge_feed", use_container_width=True):
+                del_cnt = email_agent.purge_seen_newsletters()
+                st.toast(f"Purged {del_cnt} noisy newsletters!")
+                st.rerun()
 
         with get_db_connection() as conn:
             c_feed = conn.cursor()

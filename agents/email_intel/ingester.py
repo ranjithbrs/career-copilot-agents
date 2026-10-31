@@ -43,22 +43,15 @@ class IMAPEmailIngester:
             mail.login(self.user, self.password)
             mail.select("INBOX")
 
-            # 1. Search for UNSEEN first
+            # Strictly search for UNSEEN (unread) emails only
             status, search_data = mail.search(None, "UNSEEN")
-            unseen_ids = search_data[0].split() if (status == "OK" and search_data[0]) else []
+            if status != "OK" or not search_data[0]:
+                mail.close()
+                mail.logout()
+                return []
 
-            # 2. Also search recent messages from ALL so recently received emails are never missed
-            status_all, all_data = mail.search(None, "ALL")
-            all_ids = all_data[0].split() if (status_all == "OK" and all_data[0]) else []
-
-            # Prioritize unseen, then supplement with the latest emails from inbox
-            target_ids = list(unseen_ids)
-            for e_id in all_ids[-limit:]:
-                if e_id not in target_ids:
-                    target_ids.append(e_id)
-
-            # Keep the latest batch up to limit
-            target_ids = target_ids[-limit:]
+            email_ids = search_data[0].split()
+            target_ids = email_ids[-limit:]
 
             for e_id in reversed(target_ids):
                 # Use BODY.PEEK[] so fetch doesn't prematurely clear flags before processing completes
