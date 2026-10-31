@@ -11,7 +11,15 @@ from agents.linkedin.agent import LinkedInAgent
 from agents.learning.agent import LearningAgent
 from agents.project.agent import ProjectAgent
 from daemon import AutonomousOrchestrator
-from config.settings import EMAIL_USER, GEMINI_API_KEY
+import os
+import config.settings as settings
+
+# Dynamically sync Streamlit Cloud secrets to environment variables if present
+if hasattr(st, "secrets"):
+    for k, v in st.secrets.items():
+        os.environ[k] = str(v)
+        if hasattr(settings, k):
+            setattr(settings, k, str(v))
 
 # Page setup
 st.set_page_config(
@@ -31,7 +39,8 @@ placement_agent = PlacementAgent()
 linkedin_agent = LinkedInAgent()
 learning_agent = LearningAgent()
 project_agent = ProjectAgent()
-orchestrator = AutonomousOrchestrator()
+has_email_creds = bool(os.getenv("EMAIL_USER") and os.getenv("EMAIL_PASSWORD"))
+orchestrator = AutonomousOrchestrator(use_live_email=has_email_creds)
 
 # Custom Header Styling
 st.markdown("""
@@ -63,10 +72,13 @@ with st.sidebar:
     st.divider()
     
     # Status badges
+    active_email = os.getenv("EMAIL_USER") or getattr(settings, "EMAIL_USER", "")
+    active_gemini = os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", "")
+
     st.markdown("**System Health**")
-    st.markdown(f"📧 **Inbox:** `{EMAIL_USER or 'Not Configured'}`")
-    st.markdown(f"🤖 **AI Engine:** `{'Gemini Active' if GEMINI_API_KEY else 'Heuristic Mode'}`")
-    st.markdown(f"💾 **Database:** `SQLite (Local Hub)`")
+    st.markdown(f"📧 **Inbox:** `{active_email or 'Not Configured'}`")
+    st.markdown(f"🤖 **AI Engine:** `{'Gemini Active' if active_gemini else 'Heuristic Mode'}`")
+    st.markdown(f"💾 **Database:** `SQLite (Cloud Hub)`")
     
     st.divider()
     
@@ -154,7 +166,12 @@ with tab_briefing:
                         st.rerun()
                         
         if not briefing.p0_tasks and not briefing.p1_tasks:
-            st.info("🎉 All urgent and core priority tasks are complete!")
+            st.info("👋 Welcome! Click below to run a sync and populate your study targets, placement intelligence, and deadlines.")
+            if st.button("🚀 Populate Initial Data (Sync All Agents)", key="initial_sync_btn", type="primary", use_container_width=True):
+                with st.spinner("Syncing all 6 agents..."):
+                    orchestrator.run_full_sync(send_telegram=False, print_output=False)
+                    st.success("Synchronized all agents!")
+                    st.rerun()
 
         # Add Custom Task Form
         with st.expander("➕ Add Custom Task"):
