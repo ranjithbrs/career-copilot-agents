@@ -105,6 +105,26 @@ CREATE TABLE IF NOT EXISTS tracked_projects (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS focus_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER,
+    task_description TEXT,
+    session_type TEXT NOT NULL,
+    duration_minutes INTEGER NOT NULL,
+    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS mock_interviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_name TEXT NOT NULL,
+    question TEXT NOT NULL,
+    user_answer TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    star_feedback TEXT,
+    improved_answer TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails_raw(message_id);
 CREATE INDEX IF NOT EXISTS idx_deadlines_due ON deadlines(deadline_dt);
 CREATE INDEX IF NOT EXISTS idx_action_items_priority ON action_items(priority, is_completed);

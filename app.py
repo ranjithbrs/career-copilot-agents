@@ -552,6 +552,68 @@ with tab_briefing:
                 st.toast("Injected fresh study targets!")
                 st.rerun()
 
+        # ----------------------------------------------------------------------
+        # DEEP-WORK FOCUS ARENA & ASSESSMENT TIMER
+        # ----------------------------------------------------------------------
+        with st.expander("⏱️ **Deep-Work Focus Arena (OA & Sprint Simulator)**", expanded=False):
+            with get_db_connection() as conn:
+                cur_f = conn.cursor()
+                cur_f.execute("SELECT COUNT(*) as count, COALESCE(SUM(duration_minutes), 0) as total_mins FROM focus_sessions WHERE DATE(completed_at) = DATE('now')")
+                f_stats = cur_f.fetchone()
+                focus_count = f_stats["count"] if f_stats else 0
+                focus_mins = f_stats["total_mins"] if f_stats else 0
+
+            fc_top1, fc_top2 = st.columns(2)
+            with fc_top1:
+                st.metric("Today's Deep Work", f"{focus_mins} mins")
+            with fc_top2:
+                st.metric("Sprints Finished", f"{focus_count} sessions")
+
+            st.caption("Time-box your problem solving to simulate real OA and technical interview pressure.")
+            
+            f_col1, f_col2 = st.columns([1.5, 1])
+            with f_col1:
+                active_task_options = [f"#{t.id} - {t.task_description[:50]}" for t in (briefing.p0_tasks + briefing.p1_tasks)]
+                if not active_task_options:
+                    active_task_options = ["General Practice / Problem Solving"]
+                
+                selected_task_str = st.selectbox("Link to Priority Task", active_task_options, key="focus_task_sel")
+                session_type = st.radio(
+                    "Sprint Mode",
+                    ["🍅 25m Focus Sprint", "⏱️ 45m Online Assessment (OA) Simulation", "🧠 60m Technical / System Round"],
+                    horizontal=False,
+                    key="focus_mode_sel"
+                )
+                duration = 25 if "25m" in session_type else 45 if "45m" in session_type else 60
+
+            with f_col2:
+                st.markdown(f"""
+                <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 12px; padding: 18px; text-align: center; margin-top: 10px;">
+                    <div style="font-size: 0.8rem; text-transform: uppercase; color: #a5b4fc; font-weight: 700; letter-spacing: 0.5px;">TARGET TIMER</div>
+                    <div style="font-size: 2.8rem; font-weight: 800; color: #ffffff; margin: 6px 0;">{duration}:00</div>
+                    <div style="font-size: 0.8rem; color: #94a3b8;">Zero distractions • Deep execution</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("Complete Sprint & Finish Task ✅", type="primary", use_container_width=True, key="btn_finish_sprint"):
+                    t_id = None
+                    if selected_task_str.startswith("#"):
+                        try:
+                            t_id = int(selected_task_str.split()[0].replace("#", ""))
+                        except Exception:
+                            pass
+                    
+                    with get_db_connection() as conn:
+                        c_fs = conn.cursor()
+                        c_fs.execute(
+                            "INSERT INTO focus_sessions (task_id, task_description, session_type, duration_minutes) VALUES (?, ?, ?, ?)",
+                            (t_id, selected_task_str, session_type, duration)
+                        )
+                    if t_id:
+                        assistant.mark_action_item_completed(t_id)
+                    st.toast(f"🎉 Great job! Logged {duration} mins of deep work & marked task finished!")
+                    st.rerun()
+
         # Add Custom Action Item
         with st.expander("➕ **Add Custom Task to Daily Plan**"):
             with st.form("add_task_form"):
@@ -620,11 +682,18 @@ with tab_briefing:
             
             st.progress(pct, text=f"Daily Goal Completion: {int(pct * 100)}% ({review.completed_count}/{total_tasks})")
             
-            c_comp, c_pend = st.columns(2)
+            with get_db_connection() as conn:
+                cur_ev = conn.cursor()
+                cur_ev.execute("SELECT COALESCE(SUM(duration_minutes), 0) as mins FROM focus_sessions WHERE DATE(completed_at) = DATE('now')")
+                today_focus_mins = cur_ev.fetchone()["mins"]
+
+            c_comp, c_pend, c_foc = st.columns(3)
             with c_comp:
                 st.metric("Completed Today", f"{review.completed_count} tasks")
             with c_pend:
                 st.metric("Pending Rollover", f"{review.pending_count} tasks")
+            with c_foc:
+                st.metric("Deep Work", f"{today_focus_mins}m logged")
 
             if review.completed_tasks:
                 with st.expander("View Finished Tasks"):
@@ -776,7 +845,7 @@ with tab_placement:
         active_dos = st.session_state.get("active_dossier", placement_agent.generate_dossier("Amazon", inject_tasks=False))
         
         st.markdown(f"#### 🛡️ **{active_dos.company_name} Interview Playbook**")
-        d_tab1, d_tab2, d_tab3 = st.tabs(["🧩 High-Yield DSA", "⚙️ CS Fundamentals", "🗣️ Cultural & Behavioral"])
+        d_tab1, d_tab2, d_tab3, d_tab4 = st.tabs(["🧩 High-Yield DSA", "⚙️ CS Fundamentals", "🗣️ Cultural & Behavioral", "🎙️ AI Mock Interviewer"])
         
         with d_tab1:
             st.markdown("**Top Algorithmic Patterns Tested:**")
@@ -805,6 +874,64 @@ with tab_placement:
                 </div>
                 """, unsafe_allow_html=True)
             st.info("💡 **STAR Framework:** Structure answers as Situation ➔ Task ➔ Action ➔ Quantifiable Result.")
+
+        with d_tab4:
+            st.markdown("#### 🎙️ **Interactive Behavioral & STAR Interview Grader**")
+            st.caption("Practice real interview questions. The agent evaluates your answer using the STAR method (Situation, Task, Action, Result) and company values.")
+            
+            from agents.placement.agent import CURATED_INTERVIEW_QUESTIONS
+            q_list = CURATED_INTERVIEW_QUESTIONS.get(active_dos.company_name.lower(), CURATED_INTERVIEW_QUESTIONS["general"])
+            
+            sel_q = st.selectbox("Interview Question", q_list, key="mock_q_sel")
+            custom_q = st.text_input("Or enter custom question (Optional)", key="mock_custom_q")
+            final_q = custom_q if custom_q else sel_q
+            
+            user_star_ans = st.text_area(
+                "Your Response (STAR Method)",
+                placeholder="Situation: Project context...\nTask: What you had to accomplish...\nAction: What you personally coded, architected, or decided...\nResult: Measurable outcome (e.g. reduced latency by 45%)...",
+                height=160,
+                key="mock_user_ans"
+            )
+            
+            if st.button("Evaluate & Grade My Answer 🎯", type="primary", use_container_width=True, key="btn_grade_mock"):
+                if user_star_ans.strip():
+                    with st.spinner("Analyzing response against STAR rubric and engineering standards..."):
+                        eval_res = placement_agent.grade_behavioral_answer(active_dos.company_name, final_q, user_star_ans)
+                        st.session_state["active_interview_eval"] = eval_res
+                        st.toast("Evaluation complete!")
+                else:
+                    st.warning("Please enter your answer before evaluating.")
+            
+            eval_res = st.session_state.get("active_interview_eval")
+            if eval_res:
+                score = eval_res["score"]
+                score_color = "#34d399" if score >= 8 else "#fbbf24" if score >= 6 else "#f87171"
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.04); border-radius: 12px; padding: 16px 20px; margin: 16px 0; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div style="font-size: 0.82rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">CANDIDATE INTERVIEW SCORE</div>
+                    <div style="font-size: 2.6rem; font-weight: 800; color: {score_color}; margin: 4px 0;">{score} / 10</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("##### 📍 **STAR Rubric Breakdown**")
+                sb = eval_res.get("star_breakdown", {})
+                st.markdown(f"- **Situation:** {sb.get('situation', 'N/A')}")
+                st.markdown(f"- **Task:** {sb.get('task', 'N/A')}")
+                st.markdown(f"- **Action:** {sb.get('action', 'N/A')}")
+                st.markdown(f"- **Result:** {sb.get('result', 'N/A')}")
+                
+                c_str, c_imp = st.columns(2)
+                with c_str:
+                    st.markdown("##### ✅ **Key Strengths**")
+                    for s in eval_res.get("strengths", []):
+                        st.markdown(f"- {s}")
+                with c_imp:
+                    st.markdown("##### ⚠️ **Areas to Elevate**")
+                    for w in eval_res.get("areas_for_improvement", []):
+                        st.markdown(f"- {w}")
+                
+                with st.expander("✨ **Polished L4/L5 Executive Answer (Model Rewrite)**", expanded=True):
+                    st.markdown(eval_res.get("improved_rewrite", ""))
 
 # ==============================================================================
 # TAB 3: LEARNING & SPACED REPETITION ENGINE

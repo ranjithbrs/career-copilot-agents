@@ -1,4 +1,5 @@
 import json
+import re
 import logging
 from typing import List, Optional, Dict, Any, Union
 from database.connection import get_db_connection
@@ -6,6 +7,29 @@ from agents.placement.schemas import HiringStage, CompanyDossier, PipelineRecord
 from config.settings import GEMINI_API_KEY, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
+
+CURATED_INTERVIEW_QUESTIONS = {
+    "amazon": [
+        "Tell me about a time you showed Customer Obsession by going beyond your assigned duties.",
+        "Describe a situation where you had to make a technical decision with incomplete information (Bias for Action).",
+        "Give an example of a tough problem you faced and how you took Ownership to resolve it without escalating."
+    ],
+    "google": [
+        "Tell me about a time you worked on an ambiguous project with no clear specifications.",
+        "Describe a time you navigated technical conflict or disagreement with a peer or senior engineer.",
+        "Give an example of how you used data or profiling to diagnose and fix a complex performance bottleneck."
+    ],
+    "microsoft": [
+        "Tell me about a time you failed or made a technical mistake, and what you learned from it (Growth Mindset).",
+        "Describe a project where you collaborated with a cross-functional team to deliver an impactful feature.",
+        "How do you stay up-to-date with emerging technologies and apply them to your daily work?"
+    ],
+    "general": [
+        "Tell me about yourself and your most challenging engineering project.",
+        "Describe a time when you were under a tight deadline and had to prioritize features.",
+        "Tell me about a time you improved a system or codebase that you didn't originally write."
+    ]
+}
 
 CURATED_PREP_DATA = {
     "amazon": {
@@ -305,3 +329,119 @@ Return structured JSON with:
                         """,
                         ("PLACEMENT", task, "P0")
                     )
+
+    def grade_behavioral_answer(self, company_name: str, question: str, user_answer: str) -> Dict[str, Any]:
+        """
+        Evaluate candidate's behavioral answer using STAR rubric (Situation, Task, Action, Result)
+        and company leadership principles.
+        """
+        if GEMINI_API_KEY:
+            try:
+                from google import genai
+                from google.genai import types
+                client = genai.Client(api_key=GEMINI_API_KEY)
+                prompt = f"""
+Company: {company_name}
+Question: {question}
+Candidate's Answer: {user_answer}
+
+Grade this behavioral answer strictly for a Software Engineer role.
+Return JSON with:
+- score: Integer from 1 to 10
+- star_breakdown: Dict with keys 'situation', 'task', 'action', 'result' each containing a 1-sentence assessment
+- strengths: List of 2 key strengths
+- areas_for_improvement: List of 2 concrete weaknesses (e.g. missing metrics, too vague on personal actions)
+- improved_rewrite: A polished 4-paragraph STAR response demonstrating high ownership and quantifiable impact.
+"""
+                response = client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.2
+                    )
+                )
+                data = json.loads(response.text)
+                score = data.get("score", 7)
+                feedback = json.dumps({
+                    "star_breakdown": data.get("star_breakdown", {}),
+                    "strengths": data.get("strengths", []),
+                    "areas_for_improvement": data.get("areas_for_improvement", [])
+                })
+                improved = data.get("improved_rewrite", "")
+                self._save_mock_interview(company_name, question, user_answer, score, feedback, improved)
+                return {
+                    "score": score,
+                    "star_breakdown": data.get("star_breakdown", {}),
+                    "strengths": data.get("strengths", []),
+                    "areas_for_improvement": data.get("areas_for_improvement", []),
+                    "improved_rewrite": improved
+                }
+            except Exception as e:
+                logger.warning(f"Gemini STAR grading fallback: {e}")
+
+        # Rule-based STAR Rubric Engine
+        lower_ans = user_answer.lower()
+        has_situation = any(w in lower_ans for w in ["when", "during", "while", "project", "working on", "at my", "in my"])
+        has_task = any(w in lower_ans for w in ["goal", "task", "objective", "challenge", "problem was", "needed to"])
+        has_action = any(w in lower_ans for w in ["i built", "i designed", "i created", "i implemented", "i analyzed", "i decided", "my approach"])
+        has_metrics = bool(re.search(r"(\d+%\b|\d+x\b|\d+ ms|\d+ days|\d+ users|\$|\bmetrics\b)", lower_ans))
+
+        score = 5
+        if has_situation: score += 1
+        if has_task: score += 1
+        if has_action: score += 1
+        if has_metrics: score += 2
+        score = min(10, max(3, score))
+
+        star_breakdown = {
+            "situation": "Clear project context established." if has_situation else "Context is vague; mention the specific company, team, or project timeline.",
+            "task": "Problem or objective clearly identified." if has_task else "Specify the exact engineering bottleneck or obstacle you were assigned to solve.",
+            "action": "Strong individual agency ('I implemented/designed')." if has_action else "Focus on what YOU personally coded and decided, not what 'we' did.",
+            "result": "Quantifiable impact and metrics included." if has_metrics else "Missing quantitative metrics (e.g., reduced latency by 30%, saved 5 hours/week)."
+        }
+
+        strengths = []
+        if has_action: strengths.append("Emphasized personal ownership and engineering initiative")
+        if has_situation: strengths.append("Provided real-world technical scenario context")
+        if not strengths: strengths.append("Direct answer to the prompt")
+
+        improvements = []
+        if not has_metrics: improvements.append("Quantify the final result with numbers (%, seconds, users, throughput)")
+        if not has_action: improvements.append("Use first-person active verbs ('I architected', 'I refactored') instead of passive voice")
+        if not improvements: improvements.append("Tie your outcome directly to the company's core values")
+
+        improved_rewrite = f"""**Situation:** During my software engineering project at {company_name.capitalize() if company_name.lower() != 'general' else 'my team'}, we had to address an urgent reliability requirement.
+
+**Task:** My objective was to eliminate bottlenecks and ensure the system scaled under heavy load before launch.
+
+**Action:** I designed and implemented an asynchronous pipeline in Python, replaced linear lookup scans with hash indexes, and wrote comprehensive unit tests with automated regression coverage.
+
+**Result:** Successfully decreased latency by 45%, eliminated deadlocks, and delivered the feature 2 days ahead of deadline with zero regression defects."""
+
+        feedback_json = json.dumps({
+            "star_breakdown": star_breakdown,
+            "strengths": strengths,
+            "areas_for_improvement": improvements
+        })
+
+        self._save_mock_interview(company_name, question, user_answer, score, feedback_json, improved_rewrite)
+
+        return {
+            "score": score,
+            "star_breakdown": star_breakdown,
+            "strengths": strengths,
+            "areas_for_improvement": improvements,
+            "improved_rewrite": improved_rewrite
+        }
+
+    def _save_mock_interview(self, company: str, question: str, answer: str, score: int, feedback: str, improved: str) -> None:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO mock_interviews (company_name, question, user_answer, score, star_feedback, improved_answer)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (company, question, answer, score, feedback, improved)
+            )
