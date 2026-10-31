@@ -44,48 +44,59 @@ has_email_creds = bool(os.getenv("EMAIL_USER") and os.getenv("EMAIL_PASSWORD"))
 orchestrator = AutonomousOrchestrator(use_live_email=has_email_creds)
 
 # ------------------------------------------------------------------------------
-# HIGH-END SAAS DESIGN SYSTEM (DARK MODE & GLASSMORPHISM)
+# HIGH-END SAAS DESIGN SYSTEM (UNIFIED DARK PALETTE & GLASSMORPHISM)
 # ------------------------------------------------------------------------------
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
     
-    html, body, [class*="css"] {
+    html, body, [class*="css"], .stApp {
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: #0b0f19;
+        color: #f8fafc;
     }
     code, pre {
         font-family: 'JetBrains Mono', monospace !important;
     }
+
+    /* Force dark background for Streamlit main block */
+    .stAppViewContainer {
+        background-color: #0b0f19;
+    }
+    
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        background-color: #0f1523 !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
     
     /* Top Header Container */
     .top-hero {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 16px;
         padding: 24px 28px;
         margin-bottom: 24px;
-        backdrop-filter: blur(12px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
     }
     .hero-title {
         font-size: 2.1rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 6px;
+        color: #ffffff;
+        margin-bottom: 8px;
         letter-spacing: -0.5px;
     }
     .hero-subtitle {
-        font-size: 0.98rem;
-        color: #94a3b8;
-        margin-bottom: 12px;
-        line-height: 1.5;
+        font-size: 1rem;
+        color: #cbd5e1 !important;
+        margin-bottom: 14px;
+        line-height: 1.55;
     }
     
     /* KPI Metric Cards */
     .kpi-card {
-        background: #111827;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: #131b2e;
+        border: 1px solid rgba(255, 255, 255, 0.09);
         border-radius: 14px;
         padding: 18px 20px;
         position: relative;
@@ -94,7 +105,7 @@ st.markdown("""
         box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
     }
     .kpi-card:hover {
-        border-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.22);
         transform: translateY(-2px);
     }
     .kpi-stripe {
@@ -111,14 +122,14 @@ st.markdown("""
         margin-bottom: 8px;
     }
     .kpi-label {
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         color: #94a3b8;
     }
     .kpi-value {
-        font-size: 2.3rem;
+        font-size: 2.4rem;
         font-weight: 800;
         line-height: 1.1;
         margin: 4px 0 6px 0;
@@ -126,20 +137,6 @@ st.markdown("""
     .kpi-sub {
         font-size: 0.8rem;
         color: #64748b;
-    }
-    
-    /* Task Cards */
-    .task-card {
-        background: #141c2e;
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 12px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
-        transition: all 0.15s ease;
-    }
-    .task-card:hover {
-        border-color: rgba(99, 102, 241, 0.4);
-        background: #172238;
     }
     
     /* Pill Badges */
@@ -156,42 +153,42 @@ st.markdown("""
         margin-bottom: 4px;
     }
     .pill-p0 {
-        background: rgba(239, 68, 68, 0.15);
+        background: rgba(239, 68, 68, 0.2);
         color: #f87171;
-        border: 1px solid rgba(239, 68, 68, 0.35);
+        border: 1px solid rgba(239, 68, 68, 0.4);
     }
     .pill-p1 {
-        background: rgba(245, 158, 11, 0.15);
+        background: rgba(245, 158, 11, 0.2);
         color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.35);
+        border: 1px solid rgba(245, 158, 11, 0.4);
     }
     .pill-p2 {
-        background: rgba(6, 182, 212, 0.15);
+        background: rgba(6, 182, 212, 0.2);
         color: #38bdf8;
-        border: 1px solid rgba(6, 182, 212, 0.35);
+        border: 1px solid rgba(6, 182, 212, 0.4);
     }
     .pill-learning {
-        background: rgba(16, 185, 129, 0.15);
+        background: rgba(16, 185, 129, 0.2);
         color: #34d399;
-        border: 1px solid rgba(16, 185, 129, 0.35);
+        border: 1px solid rgba(16, 185, 129, 0.4);
     }
     .pill-placement {
-        background: rgba(139, 92, 246, 0.15);
+        background: rgba(139, 92, 246, 0.2);
         color: #a78bfa;
-        border: 1px solid rgba(139, 92, 246, 0.35);
+        border: 1px solid rgba(139, 92, 246, 0.4);
     }
     .pill-project {
-        background: rgba(59, 130, 246, 0.15);
+        background: rgba(59, 130, 246, 0.2);
         color: #60a5fa;
-        border: 1px solid rgba(59, 130, 246, 0.35);
+        border: 1px solid rgba(59, 130, 246, 0.4);
     }
     .pill-success {
-        background: rgba(16, 185, 129, 0.15);
+        background: rgba(16, 185, 129, 0.2);
         color: #10b981;
-        border: 1px solid rgba(16, 185, 129, 0.3);
+        border: 1px solid rgba(16, 185, 129, 0.4);
     }
     
-    /* LinkedIn Simulated Modal */
+    /* LinkedIn Modal Simulation */
     .linkedin-modal {
         background: #1e293b;
         border: 1px solid #334155;
@@ -221,6 +218,16 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------------------
+# LOCAL TIMEZONE RESOLUTION (UTC -> IST)
+# ------------------------------------------------------------------------------
+utc_now = datetime.datetime.now(datetime.timezone.utc)
+ist_offset = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+local_now = utc_now.astimezone(ist_offset)
+hour = local_now.hour
+greeting = "Good morning" if 5 <= hour < 12 else "Good afternoon" if 12 <= hour < 17 else "Good evening"
+today_str = local_now.strftime('%A, %b %d, %Y')
 
 # ------------------------------------------------------------------------------
 # HELPER ACTIONS: DEMO SEEDER & CLEANER
@@ -291,7 +298,7 @@ with st.sidebar:
 
     st.markdown("#### ⚡ **System Telemetry**")
     if active_email:
-        st.markdown(f"📧 **Inbox:** <span class='pill pill-success'>LIVE SYNC</span><br><code style='font-size:0.75rem'>{active_email}</code>", unsafe_allow_html=True)
+        st.markdown(f"📧 **Inbox:** <span class='pill pill-success'>LIVE SYNC</span><br><span style='font-size:0.8rem; color:#94a3b8;'>{active_email}</span>", unsafe_allow_html=True)
     else:
         st.markdown("📧 **Inbox:** <span class='pill pill-p0'>NOT CONFIGURED</span>", unsafe_allow_html=True)
 
@@ -331,7 +338,7 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    st.caption(f"📅 **Date:** {datetime.date.today().strftime('%A, %b %d, %Y')}")
+    st.caption(f"📅 **Date:** {today_str}")
     st.caption("🔒 All credentials securely stored in Secrets.")
 
 # ------------------------------------------------------------------------------
@@ -339,9 +346,6 @@ with st.sidebar:
 # ------------------------------------------------------------------------------
 briefing = assistant.generate_morning_briefing()
 mastery_report = learning_agent.get_mastery_report()
-
-hour = datetime.datetime.now().hour
-greeting = "Good morning" if 5 <= hour < 12 else "Good afternoon" if 12 <= hour < 17 else "Good evening"
 
 st.markdown(f"""
 <div class="top-hero">
@@ -365,8 +369,8 @@ with k1:
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
         <div class="kpi-header">
-            <span class="kpi-label">🚨 Critical Actions</span>
-            <span style="font-size: 1.2rem;">⚡</span>
+            <span class="kpi-label">CRITICAL ACTIONS</span>
+            <span style="font-size: 1.2rem;">🚨</span>
         </div>
         <div class="kpi-value" style="color: #f87171;">{len(briefing.p0_tasks)}</div>
         <div class="kpi-sub">Immediate P0 priority items</div>
@@ -378,8 +382,8 @@ with k2:
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
         <div class="kpi-header">
-            <span class="kpi-label">⏰ Active Deadlines</span>
-            <span style="font-size: 1.2rem;">⏳</span>
+            <span class="kpi-label">ACTIVE DEADLINES</span>
+            <span style="font-size: 1.2rem;">⏰</span>
         </div>
         <div class="kpi-value" style="color: #fbbf24;">{len(briefing.active_deadlines)}</div>
         <div class="kpi-sub">Upcoming tests & cutoffs</div>
@@ -391,8 +395,8 @@ with k3:
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #8b5cf6, #7c3aed);"></div>
         <div class="kpi-header">
-            <span class="kpi-label">🎯 In Recruitment Pipeline</span>
-            <span style="font-size: 1.2rem;">💼</span>
+            <span class="kpi-label">IN RECRUITMENT PIPELINE</span>
+            <span style="font-size: 1.2rem;">🎯</span>
         </div>
         <div class="kpi-value" style="color: #a78bfa;">{len(briefing.placement_events)}</div>
         <div class="kpi-sub">Active OAs & interviews</div>
@@ -404,8 +408,8 @@ with k4:
     <div class="kpi-card">
         <div class="kpi-stripe" style="background: linear-gradient(90deg, #10b981, #059669);"></div>
         <div class="kpi-header">
-            <span class="kpi-label">🧠 Code Problems Solved</span>
-            <span style="font-size: 1.2rem;">🔥</span>
+            <span class="kpi-label">CODE PROBLEMS SOLVED</span>
+            <span style="font-size: 1.2rem;">🧠</span>
         </div>
         <div class="kpi-value" style="color: #34d399;">{mastery_report.total_problems_solved}</div>
         <div class="kpi-sub">Across DSA, Python, SQL</div>
@@ -429,7 +433,7 @@ tab_briefing, tab_placement, tab_learning, tab_linkedin, tab_project = st.tabs([
 # TAB 1: COMMAND CENTER (DAILY FOCUS & EISENHOWER PRIORITIZATION)
 # ==============================================================================
 with tab_briefing:
-    left_col, right_col = st.columns([1.35, 1])
+    left_col, right_col = st.columns([1.65, 1])
 
     with left_col:
         st.markdown("### 🔥 **Daily Priorities & Action Items**")
@@ -459,34 +463,43 @@ with tab_briefing:
             for task, priority in filtered:
                 p_class = "pill-p0" if priority == "P0" else "pill-p1"
                 
-                # Category detection
+                # Category detection and clean title trimming
                 tag_label = "TASK"
                 tag_class = "pill-project"
-                if "Prep" in task.task_description or "OA" in task.task_description:
+                raw_desc = task.task_description
+                clean_desc = raw_desc
+
+                if "Prep" in raw_desc or "OA" in raw_desc:
                     tag_label = "PLACEMENT"
                     tag_class = "pill-placement"
-                elif "Study" in task.task_description:
+                elif "Study" in raw_desc:
                     tag_label = "LEARNING"
                     tag_class = "pill-learning"
-                elif "Dev Task" in task.task_description:
+                elif "Dev Task" in raw_desc or "career-copilot" in raw_desc:
                     tag_label = "PROJECT"
                     tag_class = "pill-project"
 
+                # Trim redundant prefixes
+                for prefix in ["Dev Task: ", "dev task: ", "Study [DSA]: ", "Study [PYTHON]: ", "Study [SQL]: ", "Study: "]:
+                    if clean_desc.lower().startswith(prefix.lower()):
+                        clean_desc = clean_desc[len(prefix):]
+                        break
+
                 with st.container(border=True):
-                    c_info, c_action = st.columns([4.2, 1.3])
+                    c_info, c_action = st.columns([5.2, 1.2])
                     with c_info:
                         st.markdown(
                             f"<span class='pill {p_class}'>{priority}</span> "
                             f"<span class='pill {tag_class}'>{tag_label}</span> "
-                            f"<span style='font-weight: 600; font-size: 0.95rem;'>{task.task_description}</span>",
+                            f"<span style='font-weight: 600; font-size: 0.95rem; color: #f8fafc;'>{clean_desc}</span>",
                             unsafe_allow_html=True
                         )
                         if task.due_date:
                             st.caption(f"⏰ **Target Cutoff:** {task.due_date}")
                     with c_action:
-                        b1, b2 = st.columns(2)
+                        b1, b2 = st.columns([1.6, 1])
                         with b1:
-                            if st.button("✅ Done", key=f"btn_done_{task.id}", use_container_width=True):
+                            if st.button("Done ✅", key=f"btn_done_{task.id}", use_container_width=True):
                                 assistant.mark_action_item_completed(task.id)
                                 st.toast(f"Marked task #{task.id} completed!")
                                 st.rerun()
@@ -538,24 +551,44 @@ with tab_briefing:
                         st.toast("Deadline marked completed!")
                         st.rerun()
         else:
-            st.info("No active deadlines recorded. Keep preparing and monitoring emails!")
+            with st.container(border=True):
+                st.markdown("#### 📅 No Active Deadlines Recorded")
+                st.caption("Keep monitoring emails or quickly log an upcoming assessment below.")
+                with st.popover("➕ Add Assessment / Deadline"):
+                    with st.form("quick_dl_form"):
+                        dl_t = st.text_input("Assessment or Interview Title", placeholder="e.g. Amazon Online Assessment")
+                        dl_d = st.text_input("Cutoff Date & Time", placeholder="e.g. Nov 5, 2026, 11:59 PM")
+                        dl_u = st.text_input("Assessment URL (Optional)", placeholder="https://assessment.hackerrank.com/...")
+                        if st.form_submit_button("Save Deadline", type="primary", use_container_width=True):
+                            if dl_t:
+                                with get_db_connection() as conn:
+                                    conn.cursor().execute(
+                                        "INSERT INTO deadlines (title, deadline_dt, category, action_url) VALUES (?, ?, 'ONLINE_ASSESSMENT', ?)",
+                                        (dl_t, dl_d, dl_u)
+                                    )
+                                st.toast("Saved deadline!")
+                                st.rerun()
 
         st.write("")
         # Evening Accountability Card
         with st.container(border=True):
             st.markdown("### 🌙 **Evening Accountability Review**")
             review = assistant.generate_evening_review()
+            total_tasks = review.completed_count + review.pending_count
+            pct = (review.completed_count / total_tasks) if total_tasks > 0 else 0.0
+            
+            st.progress(pct, text=f"Daily Goal Completion: {int(pct * 100)}% ({review.completed_count}/{total_tasks})")
             
             c_comp, c_pend = st.columns(2)
             with c_comp:
-                st.metric("Completed Today", review.completed_count)
+                st.metric("Completed Today", f"{review.completed_count} tasks")
             with c_pend:
-                st.metric("Pending Rollover", review.pending_count)
+                st.metric("Pending Rollover", f"{review.pending_count} tasks")
 
             if review.completed_tasks:
-                st.markdown("**Completed Actions:**")
-                for c in review.completed_tasks:
-                    st.markdown(f"- ✅ <span style='color: #34d399;'>{c}</span>", unsafe_allow_html=True)
+                with st.expander("View Finished Tasks"):
+                    for c in review.completed_tasks:
+                        st.markdown(f"- ✅ <span style='color: #34d399;'>{c}</span>", unsafe_allow_html=True)
             else:
                 st.caption("No tasks finished yet today. Knock out a P0 or P1 item above!")
 
@@ -600,7 +633,7 @@ with tab_placement:
     if pipeline:
         for p in pipeline:
             with st.container(border=True):
-                col_brand, col_status, col_actions = st.columns([2.2, 1.4, 1.2])
+                col_brand, col_status, col_actions = st.columns([2.4, 1.3, 1.2])
                 with col_brand:
                     # Status styling
                     s_color = "pill-p1"
@@ -621,14 +654,14 @@ with tab_placement:
                 
                 with col_status:
                     current_idx = [s.value for s in HiringStage].index(p.status) if p.status in [s.value for s in HiringStage] else 0
-                    new_stage = st.selectbox("Stage", [s.value for s in HiringStage], index=current_idx, key=f"p_st_{p.id}")
+                    new_stage = st.selectbox("Stage", [s.value for s in HiringStage], index=current_idx, key=f"p_st_{p.id}", label_visibility="collapsed")
                     if new_stage != p.status:
                         placement_agent.advance_stage(p.id, HiringStage(new_stage))
                         st.toast(f"Updated {p.company_name} stage to {new_stage}!")
                         st.rerun()
                 
                 with col_actions:
-                    if st.button("📖 View Cheat-Sheet", key=f"view_strat_{p.id}", use_container_width=True):
+                    if st.button("📖 Strategy", key=f"view_strat_{p.id}", use_container_width=True):
                         st.session_state["target_prep_company"] = p.company_name
                     if st.button("🗑️ Remove", key=f"p_del_{p.id}", use_container_width=True):
                         placement_agent.delete_pipeline_entry(p.id)
@@ -675,8 +708,8 @@ with tab_placement:
             st.markdown("**Top Algorithmic Patterns Tested:**")
             for pattern in active_dos.dsa_focus:
                 st.markdown(f"""
-                <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #8b5cf6; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
-                    <strong>{pattern}</strong>
+                <div style="background: rgba(255, 255, 255, 0.04); border-left: 3px solid #8b5cf6; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
+                    <strong style="color: #f8fafc;">{pattern}</strong>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -684,8 +717,8 @@ with tab_placement:
             st.markdown("**Core CS Fundamentals & System Architecture:**")
             for cs in active_dos.cs_fundamentals:
                 st.markdown(f"""
-                <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #0ea5e9; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
-                    <strong>{cs}</strong>
+                <div style="background: rgba(255, 255, 255, 0.04); border-left: 3px solid #0ea5e9; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
+                    <strong style="color: #f8fafc;">{cs}</strong>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -693,8 +726,8 @@ with tab_placement:
             st.markdown("**Behavioral Framework & Leadership Principles:**")
             for b in active_dos.behavioral_topics:
                 st.markdown(f"""
-                <div style="background: rgba(255, 255, 255, 0.03); border-left: 3px solid #10b981; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
-                    <strong>{b}</strong>
+                <div style="background: rgba(255, 255, 255, 0.04); border-left: 3px solid #10b981; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
+                    <strong style="color: #f8fafc;">{b}</strong>
                 </div>
                 """, unsafe_allow_html=True)
             st.info("💡 **STAR Framework:** Structure answers as Situation ➔ Task ➔ Action ➔ Quantifiable Result.")
