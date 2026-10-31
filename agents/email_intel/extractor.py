@@ -79,9 +79,21 @@ Body:
         """Fast offline rule-based heuristic parser for testing and resilience."""
         content = f"{email.subject} {email.body}".lower()
 
-        # 1. Check for spam / noise
+        # Comprehensive career and hiring signals (strictly protected from spam filter)
+        career_keywords = [
+            "interview", "assessment", "placement", "shortlist", "hiring", "hire", "unstop",
+            "job", "internship", "career", "recruitment", "engineer", "developer", "coding test",
+            "online test", "hackerrank", "mettl", "codesignal", "test link", "assessment link",
+            "superset", "hirepro", "cocubes", "myanatomy", "cuvette", "naukri", "wellfound",
+            "outskill", "internshala", "infosys", "tcs", "wipro", "cognizant", "accenture",
+            "amazon", "google", "microsoft", "round", "technical screening", "dsa", "leetcode"
+        ]
+
+        has_career_signal = any(kw in content for kw in career_keywords)
+
+        # 1. Check for spam / noise (NEVER classify as noise if career signal exists)
         noise_signals = ["unsubscribe", "view in browser", "privacy policy", "promotions", "newsletter", "sale", "discount", "deal of the day"]
-        is_noise = any(signal in content for signal in noise_signals) and not any(kw in content for kw in ["interview", "assessment", "placement", "shortlist", "hiring", "unstop"])
+        is_noise = any(signal in content for signal in noise_signals) and not has_career_signal
         
         # 2. Extract links (filter out images, tracking pixels, css, fonts)
         urls = re.findall(r"https?://[^\s'\"<>]+", email.body)
@@ -105,38 +117,51 @@ Body:
             "placement journey", "placement drive", "campus recruitment", "campus hiring", 
             "hiring challenge", "online test", "coding assessment", "hackerrank", "mettl", 
             "codesignal", "test link", "assessment link", "internship opportunity", "job opportunity",
-            "shortlisted candidates", "shortlist", "interview call"
+            "shortlisted candidates", "shortlist", "interview call", "is hiring", "hiring for"
         ])
 
         if any(kw in content for kw in ["coding test", "online assessment", "hackerrank", "mettl", "codesignal", "test link", "assessment link"]):
             category = EmailCategory.PLACEMENT_OA
             urgency = UrgencyLevel.CRITICAL if any(kw in content for kw in ["today", "tomorrow", "24 hours", "expires soon"]) else UrgencyLevel.HIGH
-        elif any(kw in content for kw in ["interview schedule", "technical round", "hr interview", "interview call"]):
+        elif any(kw in content for kw in ["interview schedule", "technical round", "hr interview", "interview call", "technical screening"]):
             category = EmailCategory.INTERVIEW_INVITE
             urgency = UrgencyLevel.CRITICAL
         elif any(kw in content for kw in ["deadline", "due date", "last date to apply", "closes on", "submission"]):
             category = EmailCategory.DEADLINE_ALERT
             urgency = UrgencyLevel.HIGH
-        elif is_campus_platform or has_placement_kw or any(kw in content for kw in ["placement", "recruitment", "hiring"]):
+        elif is_campus_platform or has_placement_kw or any(kw in content for kw in ["placement", "recruitment", "hiring", "job opening"]):
             category = EmailCategory.COLLEGE_NOTICE
             urgency = UrgencyLevel.HIGH
+        elif any(kw in content for kw in ["outskill", "workshop", "webinar", "course", "bootcamp"]):
+            category = EmailCategory.GENERAL
+            urgency = UrgencyLevel.MEDIUM
         elif is_noise:
             category = EmailCategory.NEWSLETTER_SPAM
             urgency = UrgencyLevel.LOW
 
         # 4. Extract Company / Organization
         company = None
-        match_co = re.search(r"(at|from|with)\s+([A-Z][a-zA-Z0-9&]+)", email.subject)
-        if match_co:
-            company = match_co.group(2)
-        elif is_campus_platform:
-            # Guess from sender or subject
-            domain_match = re.search(r"@([a-zA-Z0-9.-]+)", email.sender)
-            company = domain_match.group(1).split(".")[0].capitalize() if domain_match else "Campus Placement"
-        else:
-            domain_match = re.search(r"@([a-zA-Z0-9.-]+)", email.sender)
-            if domain_match:
-                company = domain_match.group(1).split(".")[0].capitalize()
+        known_companies = [
+            "infosys", "tcs", "wipro", "cognizant", "accenture", "amazon", "google", 
+            "microsoft", "meta", "apple", "netflix", "uber", "swiggy", "zomato", 
+            "flipkart", "atlassian", "oracle", "cisco", "ibm", "deloitte", "ey", "pwc", "kpmg", "outskill"
+        ]
+        for comp in known_companies:
+            if re.search(rf"\b{comp}\b", email.subject, re.IGNORECASE) or re.search(rf"\b{comp}\b", email.sender, re.IGNORECASE):
+                company = comp.upper() if len(comp) <= 4 or comp in ["infosys", "tcs", "wipro"] else comp.capitalize()
+                break
+
+        if not company:
+            match_co = re.search(r"(at|from|with|for)\s+([A-Z][a-zA-Z0-9&]+)", email.subject)
+            if match_co:
+                company = match_co.group(2)
+            elif is_campus_platform:
+                domain_match = re.search(r"@([a-zA-Z0-9.-]+)", email.sender)
+                company = domain_match.group(1).split(".")[0].capitalize() if domain_match else "Campus Placement"
+            else:
+                domain_match = re.search(r"@([a-zA-Z0-9.-]+)", email.sender)
+                if domain_match:
+                    company = domain_match.group(1).split(".")[0].capitalize()
 
         # 5. Extract Deadline mention
         deadline_match = re.search(r"(deadline|due|expires|before|by)[:\s]+([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4}|[A-Za-z]+ \d{1,2}(?:, \d{4})?)", content)
@@ -153,7 +178,7 @@ Body:
             action_items.append("Review company interview topics and resume")
         elif category == EmailCategory.COLLEGE_NOTICE:
             clean_s = email.subject.replace("\r", " ").replace("\n", " ").strip()[:65]
-            action_items.append(f"Review placement invite: {clean_s}")
+            action_items.append(f"Review placement notice: {clean_s}")
             if important_urls:
                 action_items.append(f"Check portal link: {important_urls[0]}")
         elif category == EmailCategory.DEADLINE_ALERT:

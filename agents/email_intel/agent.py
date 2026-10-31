@@ -165,3 +165,52 @@ class EmailIntelligenceAgent:
             raise ValueError("IMAP email credentials are not set in .env. Use run_mock_cycle() or configure EMAIL_USER and EMAIL_PASSWORD.")
         emails = ingester.fetch_unread(limit=limit)
         return self.process_emails(emails)
+
+    def reprocess_stored_emails(self) -> Dict[str, Any]:
+        """Re-evaluates previously stored emails with the enhanced extractor to capture missed placement signals."""
+        results = {"reprocessed": 0, "promoted_placements": 0, "promoted_deadlines": 0}
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, message_id, sender, subject, date_received FROM emails_raw ORDER BY id ASC")
+            rows = cursor.fetchall()
+
+            for r in rows:
+                raw = RawEmail(
+                    message_id=r["message_id"],
+                    sender=r["sender"],
+                    subject=r["subject"],
+                    date=r["date_received"],
+                    body=r["subject"]
+                )
+                parsed = self.extractor.extract(raw)
+                
+                # Check if this qualifies as a placement or campus signal
+                if parsed.category in (EmailCategory.PLACEMENT_OA, EmailCategory.INTERVIEW_INVITE, EmailCategory.JOB_APPLICATION, EmailCategory.COLLEGE_NOTICE):
+                    cursor.execute("SELECT 1 FROM placement_pipeline WHERE email_id = ?", (r["id"],))
+                    if not cursor.fetchone():
+                        status = "INTERVIEW_SCHEDULED" if parsed.category == EmailCategory.INTERVIEW_INVITE else "OA_PENDING" if parsed.category == EmailCategory.PLACEMENT_OA else "APPLIED"
+                        cursor.execute(
+                            """
+                            INSERT INTO placement_pipeline (email_id, company_name, role, status, test_link, test_deadline, prep_notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                r["id"],
+                                parsed.company_or_sender or "Campus Placement",
+                                "Software Engineer",
+                                status,
+                                parsed.important_urls[0] if parsed.important_urls else None,
+                                parsed.deadline_date,
+                                f"Extracted from {r['subject']}"
+                            )
+                        )
+                        results["promoted_placements"] += 1
+
+                # Update emails_raw row
+                cursor.execute(
+                    "UPDATE emails_raw SET category = ?, urgency = ?, is_noise = ? WHERE id = ?",
+                    (parsed.category.value, parsed.urgency.value, 1 if parsed.is_noise else 0, r["id"])
+                )
+                results["reprocessed"] += 1
+
+        return results

@@ -64,7 +64,7 @@ placement_agent = PlacementAgent()
 linkedin_agent = LinkedInAgent()
 learning_agent = LearningAgent()
 project_agent = ProjectAgent()
-has_email_creds = bool(os.getenv("EMAIL_USER") and os.getenv("EMAIL_PASSWORD"))
+has_email_creds = bool((os.getenv("EMAIL_USER") or getattr(settings, "EMAIL_USER", "")) and (os.getenv("EMAIL_PASSWORD") or getattr(settings, "EMAIL_PASSWORD", "")))
 orchestrator = AutonomousOrchestrator(use_live_email=has_email_creds)
 
 # ------------------------------------------------------------------------------
@@ -88,17 +88,47 @@ st.markdown("""
         background-color: #0b0f19;
     }
 
-    /* Responsive Content Constraints (Centers and prevents distortion on ultra-wide & zoomed-out screens) */
+    /* Responsive Content Constraints (Seamless scaling on ultra-wide & zoomed-out screens) */
     .block-container {
-        max-width: 1440px !important;
+        max-width: 1560px !important;
+        width: 95% !important;
         margin-left: auto !important;
         margin-right: auto !important;
-        padding-top: 1.5rem !important;
+        padding-top: 1.25rem !important;
         padding-bottom: 4rem !important;
         padding-left: 1.5rem !important;
         padding-right: 1.5rem !important;
     }
     
+    /* Modern SaaS Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(8px);
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 20px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 42px;
+        border-radius: 8px;
+        padding: 0 18px;
+        font-weight: 600;
+        color: #94a3b8;
+        border: none !important;
+        transition: all 0.2s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    }
+
     /* Sidebar Styling */
     [data-testid="stSidebar"] {
         background-color: #0f1523 !important;
@@ -110,8 +140,8 @@ st.markdown("""
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 16px;
-        padding: 24px 28px;
-        margin-bottom: 24px;
+        padding: 22px 26px;
+        margin-bottom: 22px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
     }
     .hero-title {
@@ -122,7 +152,25 @@ st.markdown("""
         letter-spacing: -0.5px;
     }
     .hero-subtitle {
-        font-size: 1rem;
+        font-size: 0.98rem;
+        color: #cbd5e1 !important;
+        margin-bottom: 14px;
+        line-height: 1.55;
+    }
+
+    /* Email Card in Live Intelligence Feed */
+    .email-card {
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
+        transition: all 0.2s ease;
+    }
+    .email-card:hover {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.15);
+    }
         color: #cbd5e1 !important;
         margin-bottom: 14px;
         line-height: 1.55;
@@ -470,6 +518,52 @@ with st.sidebar:
     st.caption("🔒 All credentials securely stored in Secrets.")
 
 # ------------------------------------------------------------------------------
+# AUTOMATIC EMAIL INTELLIGENCE BACKGROUND SYNC
+# ------------------------------------------------------------------------------
+def check_and_auto_sync_emails():
+    """Silently fetches unread emails in the background every 90 seconds."""
+    if not has_email_creds:
+        return None
+    now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+    last_sync = st.session_state.get("last_auto_sync_ts", 0)
+    if now_ts - last_sync >= 90:
+        st.session_state["last_auto_sync_ts"] = now_ts
+        try:
+            res = email_agent.run_live_cycle(limit=15)
+            proc = res.get("processed", 0)
+            placements = len(res.get("placement_updates", []))
+            deadlines = len(res.get("deadlines_detected", []))
+            st.session_state["last_sync_res"] = res
+            st.session_state["last_sync_time"] = local_now.strftime("%I:%M %p")
+            if proc > 0:
+                st.toast(f"📬 Auto-synced {proc} new email(s): {placements} placement & {deadlines} deadlines!")
+            return res
+        except Exception as e:
+            logger.debug(f"Auto-sync background check error: {e}")
+            return None
+    return None
+
+check_and_auto_sync_emails()
+
+@st.fragment(run_every="90s")
+def live_sync_watcher():
+    """Live background watcher that runs every 90s to auto-detect new unread emails without user clicks."""
+    if has_email_creds:
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        last_watcher = st.session_state.get("last_watcher_ts", 0)
+        if now_ts - last_watcher >= 85:
+            st.session_state["last_watcher_ts"] = now_ts
+            try:
+                res = email_agent.run_live_cycle(limit=15)
+                if res.get("processed", 0) > 0:
+                    st.toast(f"📬 Auto-detected {res['processed']} new unread email(s)!")
+                    st.rerun()
+            except Exception:
+                pass
+
+live_sync_watcher()
+
+# ------------------------------------------------------------------------------
 # TOP HERO BANNER & KPI METRICS
 # ------------------------------------------------------------------------------
 briefing = assistant.generate_morning_briefing()
@@ -480,19 +574,58 @@ with get_db_connection() as conn:
     cursor_kpi.execute("SELECT COUNT(*) as c FROM placement_pipeline")
     total_pipeline_count = cursor_kpi.fetchone()["c"]
 
-st.markdown(f"""
-<div class="top-hero">
-    <div class="hero-title">{greeting}, Ranjith! 👋</div>
-    <div class="hero-subtitle">
-        Your autonomous multi-agent copilot is monitoring your recruitment pipeline, tracking OA deadlines, scheduling spaced-repetition coding streaks, and auditing codebase health.
+hero_left, hero_right = st.columns([2.6, 1.4])
+
+with hero_left:
+    st.markdown(f"""
+    <div class="top-hero" style="height: 100%;">
+        <div class="hero-title">{greeting}, Ranjith! 👋</div>
+        <div class="hero-subtitle">
+            Your autonomous multi-agent copilot is monitoring your recruitment pipeline, tracking OA deadlines, scheduling spaced-repetition coding streaks, and auditing codebase health.
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <span class="pill pill-placement">6 AGENTS RUNNING</span>
+            <span class="pill pill-learning">SPACED REPETITION ACTIVE</span>
+            <span class="pill pill-project">GIT HYGIENE AUDITOR</span>
+        </div>
     </div>
-    <div>
-        <span class="pill pill-placement">6 AGENTS RUNNING</span>
-        <span class="pill pill-learning">SPACED REPETITION ACTIVE</span>
-        <span class="pill pill-project">GIT HYGIENE AUDITOR</span>
+    """, unsafe_allow_html=True)
+
+with hero_right:
+    sync_time_disp = st.session_state.get("last_sync_time", "Active")
+    inbox_label = active_email if active_email else "Demo Inbox (Mock Active)"
+    st.markdown(f"""
+    <div class="top-hero" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; color: #34d399; font-weight: 800; letter-spacing: 0.6px; display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 10px #34d399;"></span>
+                LIVE INBOX AUTO-SYNC
+            </div>
+            <div style="font-size: 0.88rem; color: #f8fafc; font-weight: 600; margin-top: 6px; word-break: break-all;">
+                {inbox_label}
+            </div>
+            <div style="font-size: 0.76rem; color: #94a3b8; margin-top: 4px;">
+                Auto-polls every 90s • Last checked: <strong style="color: #cbd5e1;">{sync_time_disp}</strong>
+            </div>
+        </div>
     </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+    if st.button("🔄 Sync Inbox Now", key="hero_sync_btn", use_container_width=True):
+        with st.spinner("Connecting to inbox over IMAP..."):
+            try:
+                res = email_agent.run_live_cycle(limit=15)
+                proc = res.get("processed", 0)
+                placements = len(res.get("placement_updates", []))
+                deadlines = len(res.get("deadlines_detected", []))
+                st.session_state["last_auto_sync_ts"] = datetime.datetime.now(datetime.timezone.utc).timestamp()
+                st.session_state["last_sync_time"] = local_now.strftime("%I:%M %p")
+                if proc == 0:
+                    st.toast("📥 Inbox is up to date. No new unread messages.")
+                else:
+                    st.toast(f"📥 Scanned {proc} new emails: {placements} placement updates & {deadlines} deadlines!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Sync error: {e}")
 
 # 4-Column KPI Grid
 k1, k2, k3, k4 = st.columns(4)
@@ -625,7 +758,7 @@ with tab_briefing:
                         break
 
                 with st.container(border=True):
-                    c_info, c_action = st.columns([5.2, 1.2])
+                    c_info, c_action = st.columns([4.2, 1.8])
                     with c_info:
                         st.markdown(
                             f"<span class='pill {p_class}'>{priority}</span> "
@@ -636,9 +769,9 @@ with tab_briefing:
                         if task.due_date:
                             st.caption(f"⏰ **Target Cutoff:** {task.due_date}")
                     with c_action:
-                        b1, b2 = st.columns([1.6, 1])
+                        b1, b2 = st.columns([1.2, 0.8])
                         with b1:
-                            if st.button("Done ✅", key=f"btn_done_{task.id}", use_container_width=True):
+                            if st.button("Done ✔️", key=f"btn_done_{task.id}", use_container_width=True):
                                 assistant.mark_action_item_completed(task.id)
                                 st.toast(f"Marked task #{task.id} completed!")
                                 st.rerun()
@@ -801,13 +934,24 @@ with tab_briefing:
             except Exception:
                 pass
 
-            c_comp, c_pend, c_foc = st.columns(3)
-            with c_comp:
-                st.metric("Completed Today", f"{review.completed_count} tasks")
-            with c_pend:
-                st.metric("Pending Rollover", f"{review.pending_count} tasks")
-            with c_foc:
-                st.metric("Deep Work", f"{today_focus_mins}m logged")
+            st.markdown(f"""
+            <div style="display: flex; justify-content: space-around; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 14px 10px; margin-top: 10px;">
+                <div style="text-align: center; flex: 1;">
+                    <div style="font-size: 0.72rem; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Completed</div>
+                    <div style="font-size: 1.45rem; font-weight: 800; color: #34d399; margin-top: 2px;">{review.completed_count} <span style="font-size: 0.78rem; font-weight: 500; color: #94a3b8;">tasks</span></div>
+                </div>
+                <div style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+                <div style="text-align: center; flex: 1;">
+                    <div style="font-size: 0.72rem; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Pending</div>
+                    <div style="font-size: 1.45rem; font-weight: 800; color: #fbbf24; margin-top: 2px;">{review.pending_count} <span style="font-size: 0.78rem; font-weight: 500; color: #94a3b8;">tasks</span></div>
+                </div>
+                <div style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+                <div style="text-align: center; flex: 1;">
+                    <div style="font-size: 0.72rem; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Deep Work</div>
+                    <div style="font-size: 1.45rem; font-weight: 800; color: #818cf8; margin-top: 2px;">{today_focus_mins} <span style="font-size: 0.78rem; font-weight: 500; color: #94a3b8;">mins</span></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
             if review.completed_tasks:
                 with st.expander("View Finished Tasks"):
@@ -817,37 +961,63 @@ with tab_briefing:
                 st.caption("No tasks finished yet today. Knock out a P0 or P1 item above!")
 
     st.write("")
-    with st.expander("📬 **Live Email Intelligence Feed (Scanned Emails)**"):
+    with st.expander("📬 **Live Email Intelligence Feed (Scanned Emails)**", expanded=False):
+        c_feed_h1, c_feed_h2 = st.columns([2.6, 1.4])
+        with c_feed_h1:
+            st.caption("How your Email Intelligence Agent triages and classifies your unread incoming emails:")
+        with c_feed_h2:
+            if st.button("⚡ Re-Triage Opportunities", key="btn_retriage_feed", use_container_width=True):
+                with st.spinner("Re-triaging emails against enhanced career database..."):
+                    ret = email_agent.reprocess_stored_emails()
+                    st.toast(f"Re-triaged! Promoted {ret['promoted_placements']} opportunities to Placement Pipeline!")
+                    st.rerun()
+
         with get_db_connection() as conn:
             c_feed = conn.cursor()
             c_feed.execute(
                 """
                 SELECT id, sender, subject, date_received, category, urgency, is_noise 
                 FROM emails_raw 
-                ORDER BY id DESC LIMIT 8
+                ORDER BY id DESC LIMIT 10
                 """
             )
             ingested = c_feed.fetchall()
             if ingested:
-                st.caption("How your Email Intelligence Agent classified your recent unread emails:")
                 for em in ingested:
                     clean_s = em["subject"].replace("\r", " ").replace("\n", " ").strip()
                     clean_send = em["sender"].split("<")[0].replace('"', '').strip()
+                    if not clean_send:
+                        clean_send = em["sender"]
+                    
                     if em["is_noise"]:
-                        badge = "<span class='pill pill-p0'>FILTERED NOISE</span>"
-                        action_sub = "Skipped (Promotional / Commercial Newsletter) — No action required"
-                    elif em["category"] in ["PLACEMENT_OA", "INTERVIEW_INVITE", "COLLEGE_NOTICE"]:
-                        badge = f"<span class='pill pill-placement'>{em['category']}</span>"
-                        action_sub = "Career Signal Extracted ➔ Routed to Pipeline & Action Items"
+                        badge = "<span class='pill pill-p0'>🛡️ FILTERED NOISE</span>"
+                        action_sub = "Skipped (Promotional / Newsletter) — No action required"
+                    elif em["category"] in ["PLACEMENT_OA", "INTERVIEW_INVITE", "COLLEGE_NOTICE", "JOB_APPLICATION"]:
+                        badge = f"<span class='pill pill-placement'>🎯 {em['category']}</span>"
+                        action_sub = "Career Signal Extracted ➔ Logged to Placement Pipeline & Priorities"
+                    elif em["category"] == "DEADLINE_ALERT":
+                        badge = f"<span class='pill pill-p1'>⏰ {em['category']}</span>"
+                        action_sub = "Urgent Cutoff Detected ➔ Routed to Upcoming Deadlines"
                     else:
-                        badge = f"<span class='pill pill-learning'>{em['category']}</span>"
+                        badge = f"<span class='pill pill-learning'>📬 {em['category']}</span>"
                         action_sub = f"General Email ({em['urgency']} priority)"
 
-                    st.markdown(f"{badge} **{clean_send}**: {clean_s}", unsafe_allow_html=True)
-                    st.caption(f"Status: {action_sub}")
-                    st.divider()
+                    st.markdown(f"""
+                    <div class="email-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <div>{badge}</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">{em['date_received']}</div>
+                        </div>
+                        <div style="font-weight: 700; font-size: 0.95rem; color: #f8fafc; margin-bottom: 4px;">
+                            {clean_send}: <span style="font-weight: 500; color: #e2e8f0;">{clean_s}</span>
+                        </div>
+                        <div style="font-size: 0.78rem; color: #94a3b8;">
+                            <strong>Status:</strong> {action_sub}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
             else:
-                st.info("No emails scanned yet. Click 'Scan Unread Gmail' in the sidebar to fetch incoming emails.")
+                st.info("No emails scanned yet. Live Auto-Sync checks your inbox every 90 seconds, or click 'Sync Inbox Now' above.")
 
 # ==============================================================================
 # TAB 2: PLACEMENT PIPELINE & COMPANY INTERVIEW PREP

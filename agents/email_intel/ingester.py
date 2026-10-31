@@ -43,18 +43,29 @@ class IMAPEmailIngester:
             mail.login(self.user, self.password)
             mail.select("INBOX")
 
+            # 1. Search for UNSEEN first
             status, search_data = mail.search(None, "UNSEEN")
-            if status != "OK":
-                logger.error("Failed to search mailbox.")
-                return []
+            unseen_ids = search_data[0].split() if (status == "OK" and search_data[0]) else []
 
-            email_ids = search_data[0].split()
-            # Fetch latest first
-            email_ids = email_ids[-limit:]
+            # 2. Also search recent messages from ALL so recently received emails are never missed
+            status_all, all_data = mail.search(None, "ALL")
+            all_ids = all_data[0].split() if (status_all == "OK" and all_data[0]) else []
 
-            for e_id in reversed(email_ids):
-                status, msg_data = mail.fetch(e_id, "(RFC822)")
-                if status != "OK":
+            # Prioritize unseen, then supplement with the latest emails from inbox
+            target_ids = list(unseen_ids)
+            for e_id in all_ids[-limit:]:
+                if e_id not in target_ids:
+                    target_ids.append(e_id)
+
+            # Keep the latest batch up to limit
+            target_ids = target_ids[-limit:]
+
+            for e_id in reversed(target_ids):
+                # Use BODY.PEEK[] so fetch doesn't prematurely clear flags before processing completes
+                status, msg_data = mail.fetch(e_id, "(BODY.PEEK[])")
+                if status != "OK" or not msg_data or not msg_data[0]:
+                    status, msg_data = mail.fetch(e_id, "(RFC822)")
+                if status != "OK" or not msg_data:
                     continue
 
                 for response_part in msg_data:
