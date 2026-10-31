@@ -12,6 +12,30 @@ def init_db(db_path: Optional[Path | str] = None) -> None:
     with sqlite3.connect(target) as conn:
         cursor = conn.cursor()
         cursor.executescript(INIT_SCHEMA_SQL)
+        
+        # Explicitly ensure migration tables exist
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS focus_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER,
+            task_description TEXT,
+            session_type TEXT NOT NULL,
+            duration_minutes INTEGER NOT NULL,
+            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mock_interviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_name TEXT NOT NULL,
+            question TEXT NOT NULL,
+            user_answer TEXT NOT NULL,
+            score INTEGER NOT NULL,
+            star_feedback TEXT,
+            improved_answer TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
         conn.commit()
 
 @contextmanager

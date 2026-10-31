@@ -30,8 +30,32 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize database schema
+# Initialize database schema and ensure migration tables exist
 init_db()
+
+with get_db_connection() as conn:
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS focus_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER,
+        task_description TEXT,
+        session_type TEXT NOT NULL,
+        duration_minutes INTEGER NOT NULL,
+        completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS mock_interviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_name TEXT NOT NULL,
+        question TEXT NOT NULL,
+        user_answer TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        star_feedback TEXT,
+        improved_answer TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
 
 # Initialize agents
 assistant = DailyAssistantAgent()
@@ -556,12 +580,18 @@ with tab_briefing:
         # DEEP-WORK FOCUS ARENA & ASSESSMENT TIMER
         # ----------------------------------------------------------------------
         with st.expander("⏱️ **Deep-Work Focus Arena (OA & Sprint Simulator)**", expanded=False):
-            with get_db_connection() as conn:
-                cur_f = conn.cursor()
-                cur_f.execute("SELECT COUNT(*) as count, COALESCE(SUM(duration_minutes), 0) as total_mins FROM focus_sessions WHERE DATE(completed_at) = DATE('now')")
-                f_stats = cur_f.fetchone()
-                focus_count = f_stats["count"] if f_stats else 0
-                focus_mins = f_stats["total_mins"] if f_stats else 0
+            focus_count = 0
+            focus_mins = 0
+            try:
+                with get_db_connection() as conn:
+                    cur_f = conn.cursor()
+                    cur_f.execute("SELECT COUNT(*) as count, COALESCE(SUM(duration_minutes), 0) as total_mins FROM focus_sessions WHERE DATE(completed_at) = DATE('now')")
+                    f_stats = cur_f.fetchone()
+                    if f_stats:
+                        focus_count = f_stats["count"]
+                        focus_mins = f_stats["total_mins"]
+            except Exception:
+                pass
 
             fc_top1, fc_top2 = st.columns(2)
             with fc_top1:
@@ -682,10 +712,16 @@ with tab_briefing:
             
             st.progress(pct, text=f"Daily Goal Completion: {int(pct * 100)}% ({review.completed_count}/{total_tasks})")
             
-            with get_db_connection() as conn:
-                cur_ev = conn.cursor()
-                cur_ev.execute("SELECT COALESCE(SUM(duration_minutes), 0) as mins FROM focus_sessions WHERE DATE(completed_at) = DATE('now')")
-                today_focus_mins = cur_ev.fetchone()["mins"]
+            today_focus_mins = 0
+            try:
+                with get_db_connection() as conn:
+                    cur_ev = conn.cursor()
+                    cur_ev.execute("SELECT COALESCE(SUM(duration_minutes), 0) as mins FROM focus_sessions WHERE DATE(completed_at) = DATE('now')")
+                    ev_res = cur_ev.fetchone()
+                    if ev_res:
+                        today_focus_mins = ev_res["mins"]
+            except Exception:
+                pass
 
             c_comp, c_pend, c_foc = st.columns(3)
             with c_comp:
