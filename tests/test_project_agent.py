@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config.settings as settings
 # Redirect to isolated test database
-TEST_DB_PATH = settings.DATA_DIR / "test_hub_project.db"
+TEST_DB_PATH = settings.DATA_DIR / "test_hub.db"
 settings.DB_PATH = TEST_DB_PATH
 
 from database.connection import init_db, get_db_connection

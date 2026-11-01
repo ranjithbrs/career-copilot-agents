@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config.settings as settings
 # Redirect to isolated test database
-TEST_DB_PATH = settings.DATA_DIR / "test_hub_placement.db"
+TEST_DB_PATH = settings.DATA_DIR / "test_hub.db"
 settings.DB_PATH = TEST_DB_PATH
 
 from database.connection import init_db, get_db_connection
@@ -14,12 +14,12 @@ from agents.placement.agent import PlacementAgent
 from agents.placement.schemas import HiringStage
 
 def reset_test_db():
-    if TEST_DB_PATH.exists():
-        try:
-            TEST_DB_PATH.unlink()
-        except Exception:
-            pass
     init_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM placement_pipeline")
+        cursor.execute("DELETE FROM company_dossiers")
+        cursor.execute("DELETE FROM action_items")
 
 def test_company_dossier_generation_and_task_injection():
     reset_test_db()

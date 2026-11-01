@@ -18,12 +18,13 @@ from agents.email_intel.ingester import MockEmailIngester
 
 def reset_test_db():
     """Ensure test database starts completely clean."""
-    if TEST_DB_PATH.exists():
-        try:
-            TEST_DB_PATH.unlink()
-        except Exception:
-            pass
     init_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM emails_raw")
+        cursor.execute("DELETE FROM deadlines")
+        cursor.execute("DELETE FROM placement_pipeline")
+        cursor.execute("DELETE FROM action_items")
 
 def test_database_initialization():
     """Verify that all required tables are properly created in SQLite."""

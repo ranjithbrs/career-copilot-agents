@@ -6,10 +6,12 @@ import config.settings as settings
 from database.models import INIT_SCHEMA_SQL
 
 def init_db(db_path: Optional[Path | str] = None) -> None:
-    """Initialize database tables and indexes if they do not exist."""
+    """Initialize database tables, concurrency settings, and indexes."""
     target = Path(db_path) if db_path else settings.DB_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(target) as conn:
+    with sqlite3.connect(target, timeout=30.0) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
         cursor = conn.cursor()
         cursor.executescript(INIT_SCHEMA_SQL)
         
@@ -40,10 +42,11 @@ def init_db(db_path: Optional[Path | str] = None) -> None:
 
 @contextmanager
 def get_db_connection(db_path: Optional[Path | str] = None) -> Generator[sqlite3.Connection, None, None]:
-    """Context manager for SQLite database connection with row factory enabled."""
+    """Context manager for SQLite database connection with row factory, WAL concurrency, and timeout enabled."""
     target = Path(db_path) if db_path else settings.DB_PATH
-    conn = sqlite3.connect(target)
+    conn = sqlite3.connect(target, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=5000;")
     try:
         yield conn
         conn.commit()
